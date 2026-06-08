@@ -63,6 +63,7 @@ def convert_rule_row(row: dict[str, Any], source_track: str) -> dict[str, Any]:
     out["benchmark_split"] = "single"
     out["track_family"] = "core_rule"
     out["track_role"] = role
+    out["source_benchmark"] = "cdrbench_rule_based"
     out["scoring_profile"] = "text_refinement"
     out["output_format"] = "tagged_text"
     out["reports_recipe_success"] = True
