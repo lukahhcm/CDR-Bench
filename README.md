@@ -1,6 +1,16 @@
+<div align="center">
+
 # CDR-Bench
 
 **Can LLMs execute compositional, order-sensitive data refinement recipes?**
+
+[![Code](https://img.shields.io/badge/Code-GitHub-181717?logo=github)](https://github.com/lukahhcm/CDR-Bench)
+[![Dataset](https://img.shields.io/badge/%F0%9F%A4%97%20Dataset-Hugging%20Face-blue)](https://huggingface.co/datasets/lukahh/CDR-Bench)
+[![arXiv](https://img.shields.io/badge/arXiv-coming%20soon-B31B1B.svg?logo=arxiv&logoColor=white)](https://arxiv.org/)
+
+</div>
+
+## Introduction
 
 CDR-Bench is a benchmark for evaluating whether language models can directly
 execute multi-step data refinement procedures over text. A model receives a raw
@@ -53,6 +63,12 @@ recipes**. The release utilities package the core rule-based tracks together
 with semantic extension tracks under one schema.
 
 ## Quick Start
+
+Links:
+
+- Code: [https://github.com/lukahhcm/CDR-Bench](https://github.com/lukahhcm/CDR-Bench)
+- Dataset: [https://huggingface.co/datasets/lukahh/CDR-Bench](https://huggingface.co/datasets/lukahh/CDR-Bench)
+- Paper: [arXiv link coming soon](https://arxiv.org/)
 
 Install dependencies from this folder:
 
@@ -283,6 +299,104 @@ variants, and scoring contract. Important fields include:
 | `reports_refinement_gain` | Whether RG is meaningful for this row |
 | `prompt_variants` | Natural-language recipe variants for RS@K evaluation |
 
+Example JSONL row from an `atomic_m`-style text-refinement task:
+
+```json
+{
+  "instance_id": "891914c6b7a20b54",
+  "benchmark_track": "atomic_m",
+  "benchmark_split": "single",
+  "track_family": "core_rule",
+  "source_track": "atomic_m",
+  "base_sample_id": "enwiki-enwiki-latest-pages-articles1_p1p41242-16054",
+  "domain": "web",
+  "source_record_id": "enwiki-enwiki-latest-pages-articles1_p1p41242-16054",
+  "source_benchmark": "cdrbench_rule_based",
+  "input_text": "#REDIRECT [[Technology in Star Trek]]\n\n{{Redirect category shell|\n{{R from subpage}}\n}}",
+  "input_length_chars": 87,
+  "input_length_bucket": "short",
+  "operator": "clean_copyright_mapper",
+  "operator_kind": "mapper",
+  "operator_sequence": ["clean_copyright_mapper"],
+  "semantic_operator": null,
+  "recipe_id": null,
+  "recipe_type": null,
+  "recipe_length": 1,
+  "order_family_id": null,
+  "order_slot": null,
+  "order_group_instance_id": null,
+  "group_success_rule": null,
+  "reference_status": "KEEP",
+  "reference_text": "{{Redirect category shell|\n{{R from subpage}}\n}}",
+  "reference_text_full_run": null,
+  "output_format": "tagged_text",
+  "scoring_profile": "text_refinement",
+  "reports_refinement_gain": true,
+  "prompt_variants": [
+    {
+      "style_id": "analyst_handoff",
+      "style_label": "Analyst Handoff",
+      "user_requirement": "clean the front of each file so we are not carrying copyright headers into the next stage: if it starts with a multiline comment containing the word \"copyright,\" remove that whole comment; otherwise strip the opening block of blank lines and lines starting with //, #, or --."
+    },
+    {
+      "style_id": "application_context",
+      "style_label": "Application-Context Task",
+      "user_requirement": "for downstream indexing, clean each text so the indexed content does not start with copyright headers. Remove an opening block comment when that block contains the word \"copyright\"; if not present, remove the initial consecutive blank lines and comment lines beginning with //, #, or --."
+    },
+    {
+      "style_id": "imperative_checklist",
+      "style_label": "Imperative Checklist",
+      "user_requirement": "remove any copyright notice or license-style ownership boilerplate from the beginning of the text, including a leading block comment if it contains the word \"copyright\"; if there is no such block, strip off the opening run of comment-style lines at the top that start with //, #, or --, along with any blank lines mixed into that opening header."
+    },
+    {
+      "style_id": "concise_brief",
+      "style_label": "Concise Brief",
+      "user_requirement": "Clean the beginning of the text by dropping a starting multiline copyright comment; if none applies, remove leading blank lines and top comment lines prefixed with //, #, or --."
+    },
+    {
+      "style_id": "conversational_cooperative",
+      "style_label": "Conversational Cooperative",
+      "user_requirement": "clean up the beginning so it doesn't keep any copyright header stuff. If the text starts with a multiline comment containing the word \"copyright,\" remove that whole comment; otherwise strip the opening blank lines and any top lines that start with //, #, or --."
+    },
+    {
+      "style_id": "end_weighted_instruction",
+      "style_label": "End-Weighted Instruction",
+      "user_requirement": "remove any copyright header from the beginning by deleting a leading multiline comment if it contains the word \"copyright\"; if not, strip the opening consecutive blank lines and lines starting with //, #, or -- before the actual content."
+    },
+    {
+      "style_id": "goal_oriented",
+      "style_label": "Goal-Oriented Description",
+      "user_requirement": "end up with text that starts at the real content rather than a copyright header: if the opening multiline comment contains the word \"copyright,\" remove that entire comment, and otherwise trim away the initial stretch of blank lines and comment-style header lines beginning with //, #, or --."
+    },
+    {
+      "style_id": "negative_constraint_driven",
+      "style_label": "Negative-Constraint Driven",
+      "user_requirement": "make sure the final text does not begin with copyright notices, license-style ownership boilerplate, or opening comment-header lines. To do that, remove a leading multiline comment if it contains the word \"copyright\"; otherwise remove the initial consecutive blank lines and lines starting with //, #, or --."
+    },
+    {
+      "style_id": "policy_like",
+      "style_label": "Policy-Like Requirement",
+      "user_requirement": "before use, each sample must start with substantive content rather than a copyright header. Remove any leading multiline comment that includes the word \"copyright\"; if that condition is not met, remove the consecutive opening blank lines and lines whose first characters are //, #, or --."
+    },
+    {
+      "style_id": "qa_request",
+      "style_label": "Quality-Control Request",
+      "user_requirement": "clean away any copyright header at the beginning of the sample. If the text opens with a multiline comment containing the word \"copyright,\" remove that whole comment; otherwise remove the opening sequence of blank lines and comment-style lines starting with //, #, or --. Keep the cleaned version only as the quality-checked output."
+    },
+    {
+      "style_id": "recipe_narrative",
+      "style_label": "Recipe Narrative",
+      "user_requirement": "I have texts that often begin with copyright notices and comment-style file headers. Please remove a leading multiline comment when it contains the word \"copyright\"; if there is no such comment, strip off the opening stretch of blank lines and lines starting with //, #, or -- so the text begins at the real content."
+    }
+  ],
+  "prompt_variant_count": 11,
+  "difficulty_score": 1,
+  "difficulty_label": "easy",
+  "pii_meta": null,
+  "hallu_meta": null
+}
+```
+
 ## Metrics
 
 **Recipe Success (RS).** Exact recipe execution. A prediction succeeds only when
@@ -305,6 +419,27 @@ execution. In the paper experiments, models often preserve broad text quality
 while failing exact recipe execution under operator composition or reordering.
 Deferred filter decisions are especially brittle because the model must evaluate
 the transformed intermediate state rather than the original input.
+
+Two headline findings:
+
+- On `order_f`, GPT-5.4 drops from **62.04 RS@3** when filtering is applied
+  before transformations to **14.97 RS@3** when the same filtering decision is
+  deferred to the post-transformation state, a **47.07 pp** decline.
+- On `order_m`, group-level order consistency remains below **5% OCS@3** for
+  every direct-prompt baseline model, even when individual recipe success is
+  higher.
+
+Representative main-track results from the paper are shown below. All numbers
+are percentages; `RS@3` is recipe success over three sampled prompt variants,
+`RG` is refinement gain, and `OCS@3` is group-level order-consistent success.
+
+| Model | Atomic-M RS@3 | Agnostic-M RS@3 | Agnostic-M RG | Order-M RS@3 | Order-M RG | Order-M OCS@3 | Order-F pre RS@3 | Order-F mid RS@3 | Order-F post RS@3 | Order-F OCS@3 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| GPT-5.4 | 30.30 | 22.74 | 53.77 | 13.99 | 52.58 | 4.90 | 62.04 | 25.03 | 14.97 | 9.46 |
+| Claude Opus 4.6 | 29.55 | 22.33 | 48.06 | 12.24 | 50.42 | 2.80 | 57.96 | 33.17 | 23.95 | 18.68 |
+| Qwen3.6-max | 26.15 | 23.94 | 50.81 | 7.34 | 48.90 | 0.70 | 46.88 | 21.82 | 17.03 | 8.27 |
+| Gemma-4-31B-IT | 29.55 | 25.55 | 56.54 | 8.04 | 59.32 | 0.70 | 32.81 | 19.16 | 14.01 | 6.11 |
+| Qwen3.6-35B-A3B | 18.18 | 20.40 | 42.03 | 7.02 | 41.31 | 0.00 | 50.98 | 12.17 | 12.89 | 3.70 |
 
 <p align="center">
   <img src="assets/figures/recipe-length-performance.png" alt="Recipe length performance" width="88%">
