@@ -287,12 +287,7 @@ data/evaluation_v2/
 ```
 
 The compact public files under `tracks/` are intended for benchmark users.
-Maintainer/debug metadata can be regenerated into `tracks_full/` from local
-research artifacts:
-
-```bash
-bash ./scripts/build_benchmark_from_local.sh
-```
+The public release does not include internal data-construction scripts.
 
 ## Schema
 
@@ -472,8 +467,10 @@ The release includes appendix-compatible real-scenario extensions:
 
 - **PII redaction:** 500 base samples. Compositional rows expand into 1,394
   atomic rows by present PII group.
-- **Hallucination processing:** 460 FAVA-derived base samples. Atomic rows
-  expand into detection, span extraction, type classification, and correction.
+- **Hallucination processing:** 300 FAVA-derived base samples, balanced as 150
+  hallucinated and 150 clean examples to reduce binary-label shortcut bias.
+  Atomic rows expand each base sample into detection, span extraction, type
+  classification, and correction subtasks.
 
 <p align="center">
   <img src="assets/figures/semantic-pii.png" alt="Semantic PII redaction results" width="48%">
@@ -489,7 +486,6 @@ wrappers that forward to the organized folders.
 scripts/data/
   download_benchmark.sh
   validate_benchmark.sh
-  build_benchmark_from_local.sh
 scripts/infer/
   run_inference.sh
   run_inference_suite.sh
