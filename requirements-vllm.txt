@@ -1,0 +1,5 @@
+# Optional GPU serving dependencies for scripts/start_vllm.sh and scripts/model_serve/*.
+# Install these in a Linux + CUDA environment that matches your driver/toolkit.
+-r requirements.txt
+vllm>=0.8.5
+modelscope>=1.17.0
