@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -123,16 +124,51 @@ def _score_variant(row: dict[str, Any], variant: dict[str, Any]) -> dict[str, An
     return base
 
 
-def score_rows(rows: list[dict[str, Any]], *, sample_size: int = 0) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+def _stable_json(payload: Any) -> str:
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _stable_id(*parts: Any, length: int = 16) -> str:
+    blob = "||".join(_stable_json(part) if isinstance(part, (dict, list)) else str(part) for part in parts)
+    return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:length]
+
+
+def _sample_variants(
+    row: dict[str, Any],
+    variants: list[dict[str, Any]],
+    *,
+    sample_size: int,
+    sample_seed: int,
+) -> list[dict[str, Any]]:
+    if sample_size <= 0 or sample_size >= len(variants):
+        return list(variants)
+    recipe_prompt_key = str(row.get("recipe_prompt_key") or row.get("workflow_prompt_key") or "")
+    instance_id = str(row.get("instance_id") or "")
+    ranked = sorted(
+        variants,
+        key=lambda variant: _stable_id(
+            "prompt-variant-sample",
+            sample_seed,
+            recipe_prompt_key,
+            instance_id,
+            int(variant.get("prompt_variant_index", 0) or 0),
+        ),
+    )
+    return sorted(ranked[:sample_size], key=lambda item: int(item.get("prompt_variant_index", 0) or 0))
+
+
+def score_rows(
+    rows: list[dict[str, Any]],
+    *,
+    sample_size: int = 0,
+    sample_seed: int = 0,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     variant_rows: list[dict[str, Any]] = []
     instance_rows: list[dict[str, Any]] = []
     for row in rows:
         scored_variants = [_score_variant(row, variant) for variant in _variant_predictions(row)]
         scored_variants.sort(key=lambda item: int(item.get("prompt_variant_index", 0) or 0))
-        if sample_size > 0:
-            scored_for_at_k = scored_variants[:sample_size]
-        else:
-            scored_for_at_k = scored_variants
+        scored_for_at_k = _sample_variants(row, scored_variants, sample_size=sample_size, sample_seed=sample_seed)
         variant_rows.extend(scored_variants)
         success_values = [bool(item.get("recipe_success")) for item in scored_variants]
         success_at_k_values = [bool(item.get("recipe_success")) for item in scored_for_at_k]
@@ -151,6 +187,7 @@ def score_rows(rows: list[dict[str, Any]], *, sample_size: int = 0) -> tuple[lis
                 "domain": row.get("domain"),
                 "scoring_profile": row.get("scoring_profile"),
                 "num_prompt_variants": len(scored_variants),
+                "num_sampled_prompt_variants": len(scored_for_at_k),
                 "rs": (sum(success_values) / len(success_values) if success_values else 0.0),
                 "rs_at_k": (any(success_at_k_values) if success_at_k_values else None),
                 "rs_prompt0": (success_values[0] if success_values else None),
@@ -158,7 +195,7 @@ def score_rows(rows: list[dict[str, Any]], *, sample_size: int = 0) -> tuple[lis
                 "reports_refinement_gain": bool(row.get("reports_refinement_gain")),
             }
         )
-    summary = aggregate(instance_rows, variant_rows, sample_size=sample_size)
+    summary = aggregate(instance_rows, variant_rows, sample_size=sample_size, sample_seed=sample_seed)
     return variant_rows, instance_rows, summary
 
 
@@ -181,7 +218,13 @@ def _summarize_bucket(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def aggregate(instance_rows: list[dict[str, Any]], variant_rows: list[dict[str, Any]], *, sample_size: int) -> dict[str, Any]:
+def aggregate(
+    instance_rows: list[dict[str, Any]],
+    variant_rows: list[dict[str, Any]],
+    *,
+    sample_size: int,
+    sample_seed: int,
+) -> dict[str, Any]:
     by_track: dict[str, list[dict[str, Any]]] = defaultdict(list)
     by_source_track: dict[str, list[dict[str, Any]]] = defaultdict(list)
     by_family: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -197,6 +240,7 @@ def aggregate(instance_rows: list[dict[str, Any]], variant_rows: list[dict[str, 
         "num_instances": len(instance_rows),
         "num_variant_predictions": len(variant_rows),
         "prompt_variant_sample_size_for_rs_at_k": sample_size if sample_size > 0 else "all",
+        "prompt_variant_sampling_seed": sample_seed,
         "variant_index_counts": {str(key): value for key, value in sorted(variant_counts.items())},
         "overall": _summarize_bucket(instance_rows),
         "by_track_family": {key: _summarize_bucket(value) for key, value in sorted(by_family.items())},
@@ -228,14 +272,19 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Score CDR-Bench v3 predictions.")
     parser.add_argument("--predictions-path", required=True)
     parser.add_argument("--output-dir", required=True)
-    parser.add_argument("--rs-at-k", type=int, default=0, help="Use first K variants for RS@K; 0 means all variants.")
+    parser.add_argument("--rs-at-k", type=int, default=0, help="Use K deterministic prompt variants for RS@K; 0 means all variants.")
+    parser.add_argument("--prompt-variant-sampling-seed", type=int, default=0)
     parser.add_argument("--write-csv", action="store_true")
     args = parser.parse_args()
 
     predictions_path = Path(args.predictions_path).resolve()
     output_dir = Path(args.output_dir).resolve()
     rows = read_jsonl(predictions_path)
-    variant_rows, instance_rows, summary = score_rows(rows, sample_size=args.rs_at_k)
+    variant_rows, instance_rows, summary = score_rows(
+        rows,
+        sample_size=args.rs_at_k,
+        sample_seed=args.prompt_variant_sampling_seed,
+    )
     summary["predictions_path"] = str(predictions_path)
     summary["output_dir"] = str(output_dir)
 

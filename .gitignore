@@ -1,4 +1,10 @@
 __pycache__/
 *.py[cod]
 .DS_Store
+.venv/
+.venv-*/
 data/benchmark_v3/
+data/evaluation_v2/
+data/results/
+logs/
+*.log

@@ -30,7 +30,7 @@ SEMANTIC_SAMPLE_POLICY = {
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[3]
+    return Path(__file__).resolve().parents[2]
 
 
 def _rule_source_path(root: Path, track: str) -> Path:
