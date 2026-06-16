@@ -70,6 +70,19 @@ Links:
 - Dataset: [https://huggingface.co/datasets/lukahh/CDR-Bench](https://huggingface.co/datasets/lukahh/CDR-Bench)
 - Paper: [arXiv link coming soon](https://arxiv.org/)
 
+The Hugging Face dataset exposes two configs, each with a `test` split:
+
+```python
+from datasets import load_dataset
+
+main = load_dataset("lukahh/CDR-Bench", "main", split="test")
+semantic = load_dataset("lukahh/CDR-Bench", "semantic_extension", split="test")
+```
+
+The release scripts below use the per-track files under `tracks/*.jsonl`, while
+the Hugging Face viewer uses `data/main/test.jsonl` and
+`data/semantic_extension/test.jsonl`.
+
 Install dependencies from this folder:
 
 ```bash
