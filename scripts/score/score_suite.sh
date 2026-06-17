@@ -71,10 +71,10 @@ else
       TRACKS=(atomic_m atomic_f agnostic_m order_m order_f)
       ;;
     semantic|semantic_extension)
-      TRACKS=(semantic_pii_atomic semantic_pii_compositional semantic_hallu_atomic semantic_hallu_compositional)
+      TRACKS=(semantic_pii_atomic semantic_pii_compositional semantic_hallu_atomic semantic_hallu_compositional semantic_rubric_atomic semantic_rubric_compositional semantic_safety_atomic semantic_safety_compositional)
       ;;
     all)
-      TRACKS=(atomic_m atomic_f agnostic_m order_m order_f semantic_pii_atomic semantic_pii_compositional semantic_hallu_atomic semantic_hallu_compositional)
+      TRACKS=(atomic_m atomic_f agnostic_m order_m order_f semantic_pii_atomic semantic_pii_compositional semantic_hallu_atomic semantic_hallu_compositional semantic_rubric_atomic semantic_rubric_compositional semantic_safety_atomic semantic_safety_compositional)
       ;;
     *)
       echo "Invalid --track-family: $TRACK_FAMILY" >&2

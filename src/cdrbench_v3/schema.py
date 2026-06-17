@@ -39,6 +39,8 @@ PUBLIC_V3_FIELD_ORDER = [
     "difficulty_label",
     "pii_meta",
     "hallu_meta",
+    "rubric_meta",
+    "safety_meta",
 ]
 
 FULL_V3_FIELD_ORDER = [
@@ -121,6 +123,30 @@ SEMANTIC_SOURCE_TRACKS = {
         "benchmark_track_label": "Semantic Hallucination Processing",
         "benchmark_split": "compositional",
         "structured_metric_profile": None,
+    },
+    "semantic_rubric_atomic": {
+        "benchmark_track": "semantic_rubric",
+        "benchmark_track_label": "Semantic Rubric Scoring",
+        "benchmark_split": "atomic",
+        "structured_metric_profile": "json_exact_fields",
+    },
+    "semantic_rubric_compositional": {
+        "benchmark_track": "semantic_rubric",
+        "benchmark_track_label": "Semantic Rubric Scoring",
+        "benchmark_split": "compositional",
+        "structured_metric_profile": "json_exact_fields",
+    },
+    "semantic_safety_atomic": {
+        "benchmark_track": "semantic_safety",
+        "benchmark_track_label": "Semantic Safety Tagging",
+        "benchmark_split": "atomic",
+        "structured_metric_profile": "json_exact_fields",
+    },
+    "semantic_safety_compositional": {
+        "benchmark_track": "semantic_safety",
+        "benchmark_track_label": "Semantic Safety Tagging",
+        "benchmark_split": "compositional",
+        "structured_metric_profile": "json_exact_fields",
     },
 }
 

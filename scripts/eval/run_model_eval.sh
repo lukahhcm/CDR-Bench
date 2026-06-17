@@ -91,7 +91,7 @@ esac
 
 EVAL_SUITE="${EVAL_SUITE:-main}"
 MAIN_TRACKS="atomic_m,atomic_f,agnostic_m,order_m,order_f"
-SEMANTIC_IMPLEMENTED_TRACKS="semantic_pii_atomic,semantic_pii_compositional,semantic_hallu_atomic,semantic_hallu_compositional"
+SEMANTIC_IMPLEMENTED_TRACKS="semantic_pii_atomic,semantic_pii_compositional,semantic_hallu_atomic,semantic_hallu_compositional,semantic_rubric_atomic,semantic_rubric_compositional,semantic_safety_atomic,semantic_safety_compositional"
 SEMANTIC_EXTRA_TRACKS="${SEMANTIC_EXTRA_TRACKS:-}"
 case "${EVAL_SUITE}" in
   main)

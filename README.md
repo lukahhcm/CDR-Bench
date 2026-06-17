@@ -39,8 +39,9 @@ scoring.
   so scoring uses exact recipe execution metrics instead of LLM judging.
 - **Multiple real-world domains.** Core tracks cover Web Refinement, LaTeX
   Refinement, RAG Preparation, and Privacy Redaction.
-- **Semantic extensions.** The public release also includes PII redaction and
-  hallucination-processing scenarios with the same unified scoring interface.
+- **Semantic extensions.** The public release also includes PII redaction,
+  hallucination processing, rubric scoring, and safety tagging with the same
+  unified scoring interface.
 
 <p align="center">
   <img src="assets/figures/benchmark-overview.png" alt="CDR-Bench track overview" width="96%">
@@ -57,6 +58,8 @@ scoring.
 | `order_f` | Filter placement at pre/mid/post positions | Decision + edited text |
 | `semantic_pii_*` | Real-scenario PII redaction extension | Tagged text |
 | `semantic_hallu_*` | Real-scenario hallucination extension | JSON or tagged text |
+| `semantic_rubric_*` | HelpSteer2 rubric scoring extension | JSON |
+| `semantic_safety_*` | Aegis safety tagging extension | JSON |
 
 The core benchmark contains **3,319 tasks**, **29 operators**, and **63 unique
 recipes**. The release utilities package the core rule-based tracks together
@@ -142,11 +145,11 @@ There are two evaluation suites:
   3 variants with seed 0, writing `predictions_direct_k3_seed0.jsonl` and
   `score_direct_k3_seed0/`.
 - `semantic`: appendix-style real-scenario extensions adapted from external
-  benchmarks. Current implemented domains are PII redaction and hallucination
-  processing, each with atomic and compositional tracks. These are reported as
-  atomic-vs-compositional comparisons, not merged into the main paper tracks.
-  The default prompt styles are `direct`, `imperative_checklist`, and
-  `application_context`.
+  benchmarks. Current implemented domains are PII redaction, hallucination
+  processing, HelpSteer2 rubric scoring, and Aegis safety tagging, each with
+  atomic and compositional tracks. These are reported as atomic-vs-compositional
+  comparisons, not merged into the main paper tracks. The default prompt styles
+  are `direct`, `imperative_checklist`, and `application_context`.
 
 The `scripts/eval` wrappers default to `data/evaluation_v2`, matching the
 experiment workspace. Lower-level smoke-test scripts may still write to
@@ -264,10 +267,10 @@ bash ./scripts/score_suite.sh \
   --write-csv
 ```
 
-Use `--track-family semantic_extension` for the PII and hallucination extension
-tracks, or set `EVAL_SUITE=semantic` on an API/vLLM wrapper. Additional semantic
-domains can be added later by placing paired atomic/compositional track files
-under `data/benchmark_v3/tracks/` and appending their names through
+Use `--track-family semantic_extension` for all semantic extension tracks, or
+set `EVAL_SUITE=semantic` on an API/vLLM wrapper. Additional semantic domains
+can be added later by placing paired atomic/compositional track files under
+`data/benchmark_v3/tracks/` and appending their names through
 `SEMANTIC_EXTRA_TRACKS`.
 
 ## Data Layout
@@ -289,6 +292,10 @@ data/benchmark_v3/
     semantic_pii_compositional.jsonl
     semantic_hallu_atomic.jsonl
     semantic_hallu_compositional.jsonl
+    semantic_rubric_atomic.jsonl
+    semantic_rubric_compositional.jsonl
+    semantic_safety_atomic.jsonl
+    semantic_safety_compositional.jsonl
 
 data/evaluation_v2/
   atomic_m/
@@ -488,6 +495,14 @@ The release includes appendix-compatible real-scenario extensions:
   hallucinated and 150 clean examples to reduce binary-label shortcut bias.
   Atomic rows expand each base sample into detection, span extraction, type
   classification, and correction subtasks.
+- **Rubric scoring:** 300 HelpSteer2 validation prompt-response pairs. Atomic
+  rows score one dimension at a time (`helpfulness`, `correctness`,
+  `coherence`, `complexity`, or `verbosity`); compositional rows score all five
+  dimensions in one JSON object.
+- **Safety tagging:** 300 Aegis 2.0 test prompt-response pairs, balanced across
+  the observed prompt/response label pairs. Atomic rows classify one field
+  (`prompt_label`, `response_label`, or `violated_categories`); compositional
+  rows return all three fields in one JSON object.
 
 <p align="center">
   <img src="assets/figures/semantic-pii.png" alt="Semantic PII redaction results" width="48%">
