@@ -191,6 +191,20 @@ bash ./scripts/score_predictions.sh \
   --write-csv
 ```
 
+Summarize one or more scored models into leaderboard-style reports:
+
+```bash
+bash ./scripts/summarize_results.sh \
+  --track-family all \
+  --models BASE_MODEL,MY_MODEL \
+  --base-model BASE_MODEL \
+  --output-dir data/evaluation_v2/reports/my_model_comparison
+```
+
+This writes `model_waterline.csv`, `summary.md`, and machine-readable JSON/CSV
+files that show each model's aggregate score, rank, gap to the best available
+model, and delta against an optional base model.
+
 All paths above are relative to this release folder. The user-facing download,
 inference, and scoring scripts do not depend on files outside this folder.
 
@@ -273,6 +287,27 @@ can be added later by placing paired atomic/compositional track files under
 `data/benchmark_v3/tracks/` and appending their names through
 `SEMANTIC_EXTRA_TRACKS`.
 
+Generate a report after scoring:
+
+```bash
+bash ./scripts/summarize_results.sh \
+  --track-family semantic_extension \
+  --models BASE_MODEL,MY_MODEL,BEST_MODEL \
+  --base-model BASE_MODEL
+```
+
+The semantic-extension gap is always reported as:
+
+```text
+Gap = Atomic Avg RS@3 - Compositional RS@3
+```
+
+`Atomic Avg RS@3` is a macro-average over the atomic subtasks inside a semantic
+domain, while `Compositional RS@3` is the score on the paired compositional
+track. The report therefore makes two things visible at once: how well a model
+handles individual semantic operations, and how much performance drops when the
+same operations must be composed.
+
 ## Data Layout
 
 This release folder is the project root. Data, predictions, and scores should
@@ -308,6 +343,14 @@ data/evaluation_v2/
   order_f/
     MODEL/
       ...
+  reports/
+    model_waterline.csv
+    core_model_summary.csv
+    semantic_model_summary.csv
+    core_summary.csv
+    semantic_summary.csv
+    summary.json
+    summary.md
 ```
 
 The compact public files under `tracks/` are intended for benchmark users.
