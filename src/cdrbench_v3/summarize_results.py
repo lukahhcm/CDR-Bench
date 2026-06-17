@@ -449,8 +449,8 @@ def write_markdown(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Summarize CDR-Bench score outputs into user-facing tables.")
-    parser.add_argument("--results-root", default="data/evaluation_v2")
-    parser.add_argument("--output-dir", default="data/evaluation_v2/reports")
+    parser.add_argument("--results-root", default="data/evaluation")
+    parser.add_argument("--output-dir", default="data/evaluation/reports")
     parser.add_argument("--track-family", choices=["core_rule", "main", "semantic_extension", "semantic", "all"], default="all")
     parser.add_argument("--models", default="", help="Comma-separated model directory names. Default: discover from score dirs.")
     parser.add_argument("--base-model", default="", help="Optional model directory name used for delta-vs-base columns.")

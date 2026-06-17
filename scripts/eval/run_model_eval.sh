@@ -15,7 +15,7 @@ Environment variables, usually set by thin wrappers:
                                  semantic defaults to implemented atomic/compositional extension tracks
   BENCHMARK_ROOT                 Default: data/benchmark_v3
   EVAL_ROOT                      Alias for BENCHMARK_ROOT
-  EVALUATION_ROOT                Default: data/evaluation_v2
+  EVALUATION_ROOT                Default: data/evaluation
   OUTPUT_ROOT                    Alias for EVALUATION_ROOT
   MODEL                          Required for infer/all
   MODEL_SLUG                     Directory name under each track
@@ -110,7 +110,7 @@ esac
 
 TRACKS="${TRACKS:-${DEFAULT_TRACKS}}"
 BENCHMARK_ROOT="${BENCHMARK_ROOT:-${EVAL_ROOT:-data/benchmark_v3}}"
-EVALUATION_ROOT="${EVALUATION_ROOT:-${OUTPUT_ROOT:-data/evaluation_v2}}"
+EVALUATION_ROOT="${EVALUATION_ROOT:-${OUTPUT_ROOT:-data/evaluation}}"
 PREDICTIONS_ROOT="${PREDICTIONS_ROOT:-${EVALUATION_ROOT}}"
 MODEL="${MODEL:-}"
 MODEL_SLUG="${MODEL_SLUG:-${MODEL_DIRNAME:-}}"

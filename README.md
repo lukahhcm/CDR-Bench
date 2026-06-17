@@ -151,9 +151,9 @@ There are two evaluation suites:
   comparisons, not merged into the main paper tracks. The default prompt styles
   are `direct`, `imperative_checklist`, and `application_context`.
 
-The `scripts/eval` wrappers default to `data/evaluation_v2`, matching the
-experiment workspace. Lower-level smoke-test scripts may still write to
-`data/results` when called directly.
+The `scripts/eval` wrappers default to the release-local `data/evaluation`
+directory. Lower-level smoke-test scripts may still write to `data/results`
+when called directly.
 
 Remote API example:
 
@@ -198,7 +198,7 @@ bash ./scripts/summarize_results.sh \
   --track-family all \
   --models BASE_MODEL,MY_MODEL \
   --base-model BASE_MODEL \
-  --output-dir data/evaluation_v2/reports/my_model_comparison
+  --output-dir data/evaluation/reports/my_model_comparison
 ```
 
 This writes `model_waterline.csv`, `summary.md`, and machine-readable JSON/CSV
@@ -332,7 +332,7 @@ data/benchmark_v3/
     semantic_safety_atomic.jsonl
     semantic_safety_compositional.jsonl
 
-data/evaluation_v2/
+data/evaluation/
   atomic_m/
     MODEL/
       predictions_direct_k3_seed0.jsonl
