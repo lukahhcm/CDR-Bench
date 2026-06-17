@@ -83,8 +83,8 @@ The release scripts below use the per-track files under `tracks/*.jsonl`, while
 the Hugging Face viewer uses `data/main/test.jsonl` and
 `data/semantic_extension/test.jsonl`.
 
-Create the core environment for dataset download, API/vLLM-client inference,
-and scoring:
+Create the environment for dataset loading, API inference, scoring, and optional
+local vLLM serving:
 
 ```bash
 conda create -n cdrbench python=3.10 -y
@@ -105,28 +105,18 @@ Validate the downloaded JSONL files:
 bash ./scripts/validate_benchmark.sh
 ```
 
-The core environment is enough for:
+This environment covers:
 
 - loading the dataset with `datasets.load_dataset`;
 - downloading and validating benchmark JSONL files;
 - running remote OpenAI-compatible API inference;
-- scoring predictions, which uses only the Python standard library plus the
-  repository code.
+- scoring predictions;
+- serving local models with vLLM through `scripts/start_vllm.sh` and
+  `scripts/model_serve/start_vllm_*.sh`.
 
-To serve local models with vLLM, use a separate GPU environment on a Linux CUDA
-machine:
-
-```bash
-conda create -n cdrbench-vllm python=3.10 -y
-conda activate cdrbench-vllm
-python -m pip install --upgrade pip
-python -m pip install -r requirements-vllm.txt
-```
-
-The vLLM environment is only required for `scripts/start_vllm.sh` and
-`scripts/model_serve/start_vllm_*.sh`. If your cluster requires a specific
-PyTorch/CUDA wheel, install that first following your cluster policy, then
-install `requirements-vllm.txt`.
+For vLLM serving, install on a Linux CUDA machine. If your cluster requires a
+specific PyTorch/CUDA wheel, install that first following your cluster policy,
+then install `requirements.txt`.
 
 Run a small inference smoke test:
 
