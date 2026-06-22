@@ -201,7 +201,7 @@ run_infer() {
     --progress-every "${PROGRESS_EVERY}"
   )
   if [[ -n "${BASE_URL}" ]]; then cmd+=(--base-url "${BASE_URL}"); fi
-  if [[ -n "${API_KEY}" ]]; then cmd+=(--api-key "${API_KEY}"); fi
+  if [[ -n "${API_KEY}" ]]; then export API_KEY; fi
   if [[ "${RESUME}" == "true" ]]; then cmd+=(--resume); fi
   if [[ "${RESUME_ONLY_EXISTING_ROWS}" == "true" ]]; then cmd+=(--resume-only-existing-rows); fi
   case "${ENABLE_THINKING}" in

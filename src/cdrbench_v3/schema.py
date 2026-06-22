@@ -29,6 +29,7 @@ PUBLIC_V3_FIELD_ORDER = [
     "group_success_rule",
     "reference_status",
     "reference_text",
+    "reference_json",
     "reference_text_full_run",
     "output_format",
     "scoring_profile",

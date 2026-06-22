@@ -51,9 +51,9 @@ echo "${VLLM_PID}" > "/tmp/vllm_${PORT}.pid"
 echo "${PORT}" > "/tmp/vllm_${PORT}.port"
 echo "[start_vllm] vLLM started (PID=${VLLM_PID}), waiting for ready..."
 
-MAX_WAIT=1200
+MAX_WAIT="${VLLM_START_MAX_WAIT:-1200}"
 WAITED=0
-until curl -sf "http://127.0.0.1:${PORT}/health" > /dev/null 2>&1; do
+until curl --noproxy '*' -sf "http://127.0.0.1:${PORT}/ping" > /dev/null 2>&1; do
   if ! kill -0 "${VLLM_PID}" 2>/dev/null; then
     echo "[start_vllm] ERROR: vLLM process exited before health check passed (PID=${VLLM_PID})"
     rm -f "/tmp/vllm_${PORT}.pid" "/tmp/vllm_${PORT}.port"

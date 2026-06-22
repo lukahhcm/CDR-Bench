@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from cdrbench_v3.io import read_jsonl, write_json, write_jsonl
-from cdrbench_v3.metrics import compare_json, compare_text
+from cdrbench_v3.metrics import compare_json, compare_text, parse_jsonish
 from cdrbench_v3.schema import is_json_reference
 
 
@@ -96,15 +96,17 @@ def _score_variant(row: dict[str, Any], variant: dict[str, Any]) -> dict[str, An
         return base
 
     if scoring_profile == "mixed_structured_text":
-        # Reserved for future semantic rows that require both structured JSON and text.
-        # Existing v3 data does not use this profile, but the report contract supports it.
-        json_metrics = compare_json(row.get("reference_json"), predicted_text)
+        json_metrics = compare_json(row.get("reference_json") or row.get("reference_text"), predicted_text)
+        parsed_prediction = parse_jsonish(predicted_text)
+        predicted_refined_text = ""
+        if isinstance(parsed_prediction, dict) and parsed_prediction.get("corrected_text") is not None:
+            predicted_refined_text = str(parsed_prediction.get("corrected_text"))
         text_metrics = compare_text(
             input_text=row.get("input_text"),
             reference_status=row.get("reference_status"),
             reference_text=row.get("reference_text"),
             predicted_status=predicted_status,
-            predicted_text=predicted_text,
+            predicted_text=predicted_refined_text,
         )
         recipe_success = bool(json_metrics["json_exact_match"]) and bool(text_metrics["recipe_success"])
         base.update(json_metrics)

@@ -39,11 +39,21 @@ API_MODEL_CONFIGS: tuple[ApiModelConfig, ...] = (
     ApiModelConfig("openai.gpt-5.4-2026-03-05", "overseas", aliases=("gpt-5.4",)),
     ApiModelConfig("openai.gpt-5.5", "overseas", aliases=("gpt-5.5",)),
     ApiModelConfig("openai.gpt-5.4-pro-2026-03-05", "overseas", input_field="input", aliases=("gpt-5.4-pro",)),
+    ApiModelConfig("mr.gpt-5.5", "domestic", input_field="input", stream=False),
+    ApiModelConfig("mr.gpt-5.5-pro-2026-04-23", "domestic", input_field="input", stream=False),
+    ApiModelConfig("mr.gpt-5.4", "domestic", input_field="input", stream=False),
+    ApiModelConfig("mr.gpt-5.4-pro", "domestic", input_field="input", stream=False),
     ApiModelConfig("aws.claude-sonnet-4-6", "overseas", stream=False, top_level_system=True, aliases=("claude-sonnet-4-6",)),
     ApiModelConfig("aws.claude-opus-4-6", "overseas", stream=False, top_level_system=True, aliases=("claude-opus-4-6",)),
     ApiModelConfig("vertex_ai.claude-opus-4-5-20251101", "overseas", stream=False, top_level_system=True, aliases=("claude-opus-4-5-20251101",)),
+    ApiModelConfig("mr.claude-opus-4-6-20260205", "domestic", stream=False, top_level_system=True),
+    ApiModelConfig("mr.claude-opus-4-8", "domestic", stream=False, top_level_system=True),
+    ApiModelConfig("mr.claude-opus-4-7", "domestic", stream=False, top_level_system=True),
+    ApiModelConfig("mr.claude-sonnet-4-6-20260217", "domestic", stream=False, top_level_system=True),
+    ApiModelConfig("mr.claude-sonnet-4-5-20250929", "domestic", stream=False, top_level_system=True),
     ApiModelConfig("vertex_ai.gemini-3.1-pro-preview", "overseas", input_field="contents", aliases=("gemini-3.1-pro-preview",)),
     ApiModelConfig("vertex_ai.gemini-3-flash-preview", "overseas", input_field="contents", aliases=("gemini-3-flash-preview",)),
+    ApiModelConfig("mr.gemini-3.1-pro-preview", "domestic", input_field="contents"),
     ApiModelConfig("z_ai.glm-5", "overseas", aliases=("glm-5",)),
     ApiModelConfig("qwen3.6-max-preview", "domestic"),
     ApiModelConfig("qwen3.6-plus", "domestic"),
@@ -153,6 +163,8 @@ class OpenAICompatibleBackend:
         normalized = re.sub(r"[^a-z0-9]+", "", self.model.lower())
         if self.backend == "vllm":
             return {"chat_template_kwargs": {"enable_thinking": self.enable_thinking}}
+        if normalized.startswith("mrgpt"):
+            return {"reasoning": {"effort": "low"}}
         if "qwen" in normalized or "kimi" in normalized:
             return {"enable_thinking": self.enable_thinking}
         if "deepseekv4" in normalized or "glm5" in normalized:
@@ -185,6 +197,30 @@ class OpenAICompatibleBackend:
 
     @classmethod
     def _extract_text(cls, payload: dict[str, Any]) -> str:
+        response = payload.get("response")
+        if isinstance(response, dict):
+            text = cls._extract_text(response)
+            if text:
+                return text
+        output = payload.get("output")
+        if isinstance(output, list):
+            parts: list[str] = []
+            for item in output:
+                if not isinstance(item, dict):
+                    continue
+                content = item.get("content")
+                if isinstance(content, list):
+                    for part in content:
+                        if isinstance(part, dict) and part.get("text") is not None:
+                            parts.append(str(part.get("text")))
+                elif item.get("text") is not None:
+                    parts.append(str(item.get("text")))
+            if parts:
+                return "".join(parts)
+        if payload.get("type") == "response.output_text.delta" and payload.get("delta") is not None:
+            return _stringify_content(payload.get("delta"))
+        if payload.get("type") == "response.output_text.done" and payload.get("text") is not None:
+            return _stringify_content(payload.get("text"))
         choices = payload.get("choices")
         if isinstance(choices, list) and choices:
             choice = choices[0]
@@ -240,12 +276,25 @@ class OpenAICompatibleBackend:
         for attempt in range(max_attempts):
             try:
                 stream = bool(payload.get("stream", True))
-                with requests.post(self.request_url, headers=headers, json=payload, timeout=300, stream=stream) as response:
-                    if response.status_code != 200:
-                        raise RuntimeError(f"HTTP {response.status_code} url={self.request_url} body={response.text}")
-                    if stream and "text/event-stream" in (response.headers.get("Content-Type") or "").lower():
-                        return self._extract_stream(response)
-                    return self._extract_text(response.json())
+                host = (urlparse(self.request_url).hostname or "").lower()
+                if host in LOCAL_HOSTS:
+                    session = requests.Session()
+                    session.trust_env = False
+                    request = session.post
+                else:
+                    session = None
+                    request = requests.post
+                response_context = request(self.request_url, headers=headers, json=payload, timeout=300, stream=stream)
+                try:
+                    with response_context as response:
+                        if response.status_code != 200:
+                            raise RuntimeError(f"HTTP {response.status_code} url={self.request_url} body={response.text}")
+                        if stream and "text/event-stream" in (response.headers.get("Content-Type") or "").lower():
+                            return self._extract_stream(response)
+                        return self._extract_text(response.json())
+                finally:
+                    if session is not None:
+                        session.close()
             except Exception as exc:
                 last_exc = exc
                 if attempt < max_attempts - 1:
