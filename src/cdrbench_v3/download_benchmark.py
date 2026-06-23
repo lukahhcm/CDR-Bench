@@ -18,8 +18,14 @@ def main() -> None:
     parser.add_argument(
         "--allow-patterns",
         nargs="*",
-        default=["manifest.json", "benchmark_v3_all.jsonl", "tracks/*.jsonl"],
-        help="Hugging Face snapshot allow patterns. Add tracks_full/* to download full metadata.",
+        default=[
+            "manifest.json",
+            "benchmark_v3_all.jsonl",
+            "benchmark_v3_all_prompts.jsonl",
+            "tracks/*.jsonl",
+            "tracks_all_prompts/*.jsonl",
+        ],
+        help="Hugging Face snapshot allow patterns.",
     )
     args = parser.parse_args()
 
@@ -39,4 +45,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

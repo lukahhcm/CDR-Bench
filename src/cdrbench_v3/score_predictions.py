@@ -144,7 +144,7 @@ def _sample_variants(
 ) -> list[dict[str, Any]]:
     if sample_size <= 0 or sample_size >= len(variants):
         return list(variants)
-    recipe_prompt_key = str(row.get("recipe_prompt_key") or row.get("workflow_prompt_key") or "")
+    recipe_prompt_key = str(row.get("recipe_prompt_key") or row.get("workflow_prompt_key") or row.get("recipe_id") or "")
     instance_id = str(row.get("instance_id") or "")
     ranked = sorted(
         variants,

@@ -82,8 +82,14 @@ main = load_dataset("lukahh/CDR-Bench", "main", split="test")
 semantic = load_dataset("lukahh/CDR-Bench", "semantic_extension", split="test")
 ```
 
-The release scripts below use the per-track files under `tracks/*.jsonl`, while
-the Hugging Face viewer uses `data/main/test.jsonl` and
+The release scripts below use the per-track files under `tracks/*.jsonl`.
+For the five main paper tracks, these default files already materialize the
+paper setting: three prompt variants selected with seed 0. This avoids
+accidental changes in RS@3 caused by re-sampling the prompt pool. The full
+prompt pools are also provided under `tracks_all_prompts/*.jsonl` for custom
+prompt-seed sweeps.
+
+The Hugging Face viewer uses `data/main/test.jsonl` and
 `data/semantic_extension/test.jsonl`.
 
 Create the environment for dataset loading, API inference, scoring, and optional
@@ -265,10 +271,21 @@ bash ./scripts/run_inference_suite.sh \
   --track-family core_rule \
   --model MODEL_NAME \
   --model-dirname MODEL \
-  --backend api \
-  --prompt-variant-indices all \
-  --prompt-variant-sample-size 3 \
-  --prompt-variant-sampling-seed 0
+  --backend api
+```
+
+By default, this reads `data/benchmark_v3/tracks/*.jsonl`. For the five main
+tracks, those files already contain the paper-aligned seed-0 three-prompt
+subset, so no prompt-pool sampling choice is needed.
+
+To run a custom prompt-seed sweep from the full prompt pool, explicitly switch
+to `tracks_all_prompts`:
+
+```bash
+BENCHMARK_TRACKS_SUBDIR=tracks_all_prompts \
+PROMPT_VARIANT_SAMPLE_SIZE=3 \
+PROMPT_VARIANT_SAMPLING_SEED=1 \
+bash ./scripts/eval/vllm/eval_qwen3_6_35b_a3b.sh
 ```
 
 Score the same suite:
@@ -317,7 +334,9 @@ stay inside it:
 data/benchmark_v3/
   manifest.json
   benchmark_v3_all.jsonl
+  benchmark_v3_all_prompts.jsonl
   tracks/
+    # default evaluation files; main tracks are materialized to paper seed=0, K=3
     atomic_m.jsonl
     atomic_f.jsonl
     agnostic_m.jsonl
@@ -331,6 +350,13 @@ data/benchmark_v3/
     semantic_rubric_compositional.jsonl
     semantic_safety_atomic.jsonl
     semantic_safety_compositional.jsonl
+  tracks_all_prompts/
+    # full prompt-pool copies for custom prompt sampling
+    atomic_m.jsonl
+    atomic_f.jsonl
+    agnostic_m.jsonl
+    order_m.jsonl
+    order_f.jsonl
 
 data/evaluation/
   atomic_m/
@@ -354,6 +380,10 @@ data/evaluation/
 ```
 
 The compact public files under `tracks/` are intended for benchmark users.
+They are the recommended default for reproducing paper-level RS@3 numbers.
+To run a custom prompt-seed sweep on the full main-track prompt pools, set
+`BENCHMARK_TRACKS_SUBDIR=tracks_all_prompts` and choose
+`PROMPT_VARIANT_SAMPLING_SEED`.
 The public release does not include internal data-construction scripts.
 
 ## Schema
@@ -373,6 +403,9 @@ variants, and scoring contract. Important fields include:
 | `scoring_profile` | `text_refinement`, `structured_json`, or mixed profile |
 | `reports_refinement_gain` | Whether RG is meaningful for this row |
 | `prompt_variants` | Natural-language recipe variants for RS@K evaluation |
+| `recipe_prompt_key` | Stable key used for paper-aligned prompt sampling |
+| `selected_prompt_variant_indices` | Original prompt-pool indices materialized in the default `tracks/` files |
+| `prompt_candidate_pool_count` | Size of the full prompt pool before materialization |
 
 Example JSONL row from an `atomic_m`-style text-refinement task:
 

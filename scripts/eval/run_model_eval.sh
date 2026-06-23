@@ -15,6 +15,7 @@ Environment variables, usually set by thin wrappers:
                                  semantic defaults to implemented atomic/compositional extension tracks
   BENCHMARK_ROOT                 Default: data/benchmark_v3
   EVAL_ROOT                      Alias for BENCHMARK_ROOT
+  BENCHMARK_TRACKS_SUBDIR        Default: tracks. Use tracks_all_prompts for custom prompt-seed sweeps
   EVALUATION_ROOT                Default: data/evaluation
   OUTPUT_ROOT                    Alias for EVALUATION_ROOT
   MODEL                          Required for infer/all
@@ -110,6 +111,7 @@ esac
 
 TRACKS="${TRACKS:-${DEFAULT_TRACKS}}"
 BENCHMARK_ROOT="${BENCHMARK_ROOT:-${EVAL_ROOT:-data/benchmark_v3}}"
+BENCHMARK_TRACKS_SUBDIR="${BENCHMARK_TRACKS_SUBDIR:-tracks}"
 EVALUATION_ROOT="${EVALUATION_ROOT:-${OUTPUT_ROOT:-data/evaluation}}"
 PREDICTIONS_ROOT="${PREDICTIONS_ROOT:-${EVALUATION_ROOT}}"
 MODEL="${MODEL:-}"
@@ -182,6 +184,7 @@ run_infer() {
     bash "${RELEASE_ROOT}/scripts/infer/run_inference_suite.sh"
     --tracks "${TRACKS}"
     --benchmark-root "${BENCHMARK_ROOT}"
+    --benchmark-tracks-subdir "${BENCHMARK_TRACKS_SUBDIR}"
     --output-root "${EVALUATION_ROOT}"
     --model "${MODEL}"
     --model-dirname "${MODEL_SLUG}"

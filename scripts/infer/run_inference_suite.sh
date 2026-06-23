@@ -9,6 +9,7 @@ Usage:
 Options:
   --track-family <main|core_rule|semantic|semantic_extension|all>  Default: all
   --benchmark-root <path>                            Default: data/benchmark_v3
+  --benchmark-tracks-subdir <name>                   Default: tracks
   --output-root <path>                               Default: data/results
   --tracks <csv>                                     Override track list
   --model <name>                                     Required
@@ -43,6 +44,7 @@ RELEASE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TRACK_FAMILY="all"
 TRACKS_CSV=""
 BENCHMARK_ROOT="data/benchmark_v3"
+BENCHMARK_TRACKS_SUBDIR="tracks"
 OUTPUT_ROOT="data/results"
 MODEL=""
 MODEL_DIRNAME=""
@@ -71,6 +73,7 @@ while [[ $# -gt 0 ]]; do
     --track-family) TRACK_FAMILY="$2"; shift 2 ;;
     --tracks) TRACKS_CSV="$2"; shift 2 ;;
     --benchmark-root) BENCHMARK_ROOT="$2"; shift 2 ;;
+    --benchmark-tracks-subdir) BENCHMARK_TRACKS_SUBDIR="$2"; shift 2 ;;
     --output-root) OUTPUT_ROOT="$2"; shift 2 ;;
     --model) MODEL="$2"; shift 2 ;;
     --model-dirname) MODEL_DIRNAME="$2"; shift 2 ;;
@@ -134,7 +137,7 @@ else
 fi
 
 for track in "${TRACKS[@]}"; do
-  benchmark_path="$RELEASE_ROOT/$BENCHMARK_ROOT/tracks/$track.jsonl"
+  benchmark_path="$RELEASE_ROOT/$BENCHMARK_ROOT/$BENCHMARK_TRACKS_SUBDIR/$track.jsonl"
   output_path="$RELEASE_ROOT/$OUTPUT_ROOT/$track/$MODEL_DIRNAME/$PREDICTIONS_FILENAME"
   cmd=(
     "${RELEASE_ROOT}/scripts/infer/run_inference.sh"
