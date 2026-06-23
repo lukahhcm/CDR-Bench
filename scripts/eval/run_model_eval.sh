@@ -31,12 +31,13 @@ Environment variables, usually set by thin wrappers:
   MAX_SAMPLES                    Default: 0
   MAX_INPUT_CHARS                Default: 0
   MAX_TOKENS                     Default: 0
+  TEMPERATURE                    Default: 0
   MAX_RETRIES                    Default: 1
   RETRY_SLEEP_SECONDS            Default: 2.0
   CONCURRENCY                    Default: 4 for api wrappers, 128 for vllm wrappers
   RESUME                         Default: true
   RESUME_ONLY_EXISTING_ROWS      Default: false
-  ENABLE_THINKING                true/false; empty leaves wrapper default
+  ENABLE_THINKING                true/false. Default: false in model wrappers and lower-level inference.
 EOF
 }
 
@@ -137,6 +138,7 @@ esac
 MAX_SAMPLES="${MAX_SAMPLES:-0}"
 MAX_INPUT_CHARS="${MAX_INPUT_CHARS:-0}"
 MAX_TOKENS="${MAX_TOKENS:-0}"
+TEMPERATURE="${TEMPERATURE:-0}"
 MAX_RETRIES="${MAX_RETRIES:-1}"
 RETRY_SLEEP_SECONDS="${RETRY_SLEEP_SECONDS:-${RETRY_DELAY:-2.0}}"
 CONCURRENCY="${CONCURRENCY:-4}"
@@ -198,6 +200,7 @@ run_infer() {
     --max-samples "${MAX_SAMPLES}"
     --max-input-chars "${MAX_INPUT_CHARS}"
     --max-tokens "${MAX_TOKENS}"
+    --temperature "${TEMPERATURE}"
     --max-retries "${MAX_RETRIES}"
     --retry-sleep-seconds "${RETRY_SLEEP_SECONDS}"
     --concurrency "${CONCURRENCY}"

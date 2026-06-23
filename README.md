@@ -143,6 +143,12 @@ For paper-style evaluation, use the `scripts/eval` wrappers. They mirror the
 experiment driver used for the reported results: API and vLLM wrappers only set
 backend-specific defaults, while both call the same shared runner.
 
+By default, inference is deterministic: the wrappers pass `TEMPERATURE=0`,
+disable thinking mode where the backend exposes a compatible control, and for
+local vLLM add `do_sample=false`. For GPT-style reasoning APIs, the runner uses
+the lowest reasoning effort setting it can request. Override these only when
+running an explicit ablation.
+
 There are two evaluation suites:
 
 - `main`: the five paper tracks, `atomic_m`, `atomic_f`, `agnostic_m`,

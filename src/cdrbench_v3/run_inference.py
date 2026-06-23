@@ -116,6 +116,7 @@ class OpenAICompatibleBackend:
         base_url: str,
         api_key: str,
         max_tokens: int,
+        temperature: float,
         max_retries: int,
         retry_delay: float,
         backend: str,
@@ -126,6 +127,7 @@ class OpenAICompatibleBackend:
         self.request_url = _normalize_request_url(base_url)
         self.api_key = api_key
         self.max_tokens = max_tokens
+        self.temperature = temperature
         self.max_retries = max_retries
         self.retry_delay = retry_delay
         self.backend = backend
@@ -162,8 +164,8 @@ class OpenAICompatibleBackend:
     def _extra_body(self) -> dict[str, Any]:
         normalized = re.sub(r"[^a-z0-9]+", "", self.model.lower())
         if self.backend == "vllm":
-            return {"chat_template_kwargs": {"enable_thinking": self.enable_thinking}}
-        if normalized.startswith("mrgpt"):
+            return {"chat_template_kwargs": {"enable_thinking": self.enable_thinking}, "do_sample": False}
+        if "gpt" in normalized:
             return {"reasoning": {"effort": "low"}}
         if "qwen" in normalized or "kimi" in normalized:
             return {"enable_thinking": self.enable_thinking}
@@ -192,6 +194,7 @@ class OpenAICompatibleBackend:
 
         if self.max_tokens > 0:
             payload["max_tokens"] = self.max_tokens
+        payload["temperature"] = self.temperature
         payload.update(self._extra_body())
         return payload
 
@@ -310,6 +313,7 @@ def _make_backend(
     base_url: str | None,
     api_key: str | None,
     max_tokens: int,
+    temperature: float,
     max_retries: int,
     retry_delay: float,
     enable_thinking: bool,
@@ -327,6 +331,7 @@ def _make_backend(
             base_url=resolved_base_url,
             api_key=resolved_api_key,
             max_tokens=max_tokens,
+            temperature=temperature,
             max_retries=max_retries,
             retry_delay=retry_delay,
             backend=backend,
@@ -507,6 +512,7 @@ def main() -> None:
     parser.add_argument("--max-input-chars", type=int, default=0)
     parser.add_argument("--concurrency", type=int, default=5)
     parser.add_argument("--max-tokens", type=int, default=0)
+    parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-retries", type=int, default=1, help="Number of retries after the first request attempt.")
     parser.add_argument("--retry-delay", type=float, default=2.0)
     parser.add_argument("--enable-thinking", action="store_true")
@@ -540,6 +546,7 @@ def main() -> None:
         base_url=args.base_url,
         api_key=args.api_key,
         max_tokens=args.max_tokens,
+        temperature=args.temperature,
         max_retries=args.max_retries,
         retry_delay=args.retry_delay,
         enable_thinking=args.enable_thinking,
@@ -557,6 +564,8 @@ def main() -> None:
         out["request_model"] = args.model
         out["request_backend"] = args.backend
         out["request_base_url"] = resolved_base_url
+        out["request_temperature"] = args.temperature
+        out["request_enable_thinking"] = bool(args.enable_thinking)
         out["prompt_mode"] = args.prompt_mode
         out["selected_prompt_variant_indices"] = indices
         out["selected_prompt_style_ids"] = args.prompt_style_ids

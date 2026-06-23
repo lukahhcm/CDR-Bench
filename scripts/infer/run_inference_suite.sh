@@ -27,6 +27,7 @@ Options:
   --max-input-chars <int>                            Default: 0
   --concurrency <int>                                Default: 5
   --max-tokens <int>                                 Default: 0
+  --temperature <float>                              Default: 0
   --max-retries <int>                                Default: 1
   --retry-sleep-seconds <float>                      Default: 2.0
   --retry-delay <float>                              Alias for --retry-sleep-seconds
@@ -61,6 +62,7 @@ MAX_SAMPLES="0"
 MAX_INPUT_CHARS="0"
 CONCURRENCY="5"
 MAX_TOKENS="0"
+TEMPERATURE="0"
 MAX_RETRIES="1"
 RETRY_DELAY="2.0"
 PROGRESS_EVERY="20"
@@ -90,6 +92,7 @@ while [[ $# -gt 0 ]]; do
     --max-input-chars) MAX_INPUT_CHARS="$2"; shift 2 ;;
     --concurrency) CONCURRENCY="$2"; shift 2 ;;
     --max-tokens) MAX_TOKENS="$2"; shift 2 ;;
+    --temperature) TEMPERATURE="$2"; shift 2 ;;
     --max-retries) MAX_RETRIES="$2"; shift 2 ;;
     --retry-sleep-seconds) RETRY_DELAY="$2"; shift 2 ;;
     --retry-delay) RETRY_DELAY="$2"; shift 2 ;;
@@ -154,6 +157,7 @@ for track in "${TRACKS[@]}"; do
     --max-input-chars "$MAX_INPUT_CHARS"
     --concurrency "$CONCURRENCY"
     --max-tokens "$MAX_TOKENS"
+    --temperature "$TEMPERATURE"
     --max-retries "$MAX_RETRIES"
     --retry-delay "$RETRY_DELAY"
     --progress-every "$PROGRESS_EVERY"
