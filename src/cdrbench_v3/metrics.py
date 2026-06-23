@@ -46,18 +46,38 @@ def edit_distance(left: str, right: str) -> int:
     return prev[n]
 
 
-def refinement_gain(input_text: Any, reference_text: Any, predicted_text: Any) -> dict[str, Any]:
+def refinement_gain(
+    input_text: Any,
+    reference_text: Any,
+    predicted_text: Any,
+    reference_text_full_run: Any = None,
+    reference_status: Any = None,
+) -> dict[str, Any]:
     raw_input = "" if input_text is None else str(input_text)
     raw_ref = "" if reference_text is None else str(reference_text)
     raw_pred = "" if predicted_text is None else str(predicted_text)
+    raw_ref_full = "" if reference_text_full_run is None else str(reference_text_full_run)
     d_input_ref = edit_distance(raw_input, raw_ref)
+    d_input_pred = edit_distance(raw_input, raw_pred)
     d_pred_ref = edit_distance(raw_pred, raw_ref)
-    raw_rg = 1.0 if d_pred_ref == 0 else 1.0 - (float(d_pred_ref) / (float(d_input_ref) + RG_EPSILON))
+    d_pred_full = (
+        edit_distance(raw_pred, raw_ref_full)
+        if normalize_status(reference_status) == "DROP" and raw_ref_full
+        else None
+    )
+    raw_rg = 1.0 if d_pred_ref == 0 else (float(d_input_ref) - float(d_pred_ref)) / max(float(d_input_ref), 1.0)
     rg = min(1.0, max(0.0, raw_rg))
+    edit_calibration_denominator = max(float(d_input_pred), float(d_input_ref), 1.0)
+    edit_calibration = min(1.0, max(0.0, 1.0 - (abs(float(d_input_pred) - float(d_input_ref)) / edit_calibration_denominator)))
     return {
         "edit_distance_input_to_reference": d_input_ref,
+        "edit_distance_input_to_prediction": d_input_pred,
         "edit_distance_prediction_to_reference": d_pred_ref,
+        "edit_distance_prediction_to_full_run_reference": d_pred_full,
+        "reference_text_full_run": raw_ref_full,
         "raw_refinement_gain": raw_rg,
+        "refinement_progress": rg,
+        "edit_calibration": edit_calibration,
         "refinement_gain": rg,
     }
 
@@ -129,18 +149,35 @@ def compare_text(
     reference_text: Any,
     predicted_status: Any,
     predicted_text: Any,
+    reference_text_full_run: Any = None,
 ) -> dict[str, Any]:
     status_match = normalize_status(reference_status) == normalize_status(predicted_status)
+    raw_ref = "" if reference_text is None else str(reference_text)
+    raw_pred = "" if predicted_text is None else str(predicted_text)
+    exact_ref = normalize_text(reference_text)
+    exact_pred = normalize_text(predicted_text)
     norm_ref = normalize_text_for_match(reference_text)
     norm_pred = normalize_text_for_match(predicted_text)
-    text_match = norm_ref == norm_pred
-    metrics = refinement_gain(input_text, reference_text, predicted_text)
+    strict_match = raw_ref == raw_pred
+    normalized_match = exact_ref == exact_pred
+    norm_match = norm_ref == norm_pred
+    metrics = refinement_gain(
+        input_text,
+        reference_text,
+        predicted_text,
+        reference_text_full_run=reference_text_full_run,
+        reference_status=reference_status,
+    )
     metrics.update(
         {
             "status_match": status_match,
-            "normalized_text_exact_match": text_match,
-            "recipe_success": status_match and text_match,
+            "text_exact_match": strict_match,
+            "normalized_text_exact_match": normalized_match,
+            "norm_text_exact_match": norm_match,
+            "recipe_success_strict": status_match and strict_match,
+            "normalized_recipe_success": status_match and normalized_match,
+            "norm_recipe_success": status_match and norm_match,
+            "recipe_success": status_match and norm_match,
         }
     )
     return metrics
-

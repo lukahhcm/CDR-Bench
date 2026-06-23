@@ -147,8 +147,8 @@ There are two evaluation suites:
 
 - `main`: the five paper tracks, `atomic_m`, `atomic_f`, `agnostic_m`,
   `order_m`, and `order_f`. This is the setting for reproducing the main paper
-  numbers. It uses all prompt variants as the pool and deterministically samples
-  3 variants with seed 0, writing `predictions_direct_k3_seed0.jsonl` and
+  numbers. The default `tracks/*.jsonl` files already contain the paper-aligned
+  seed-0 three-prompt subset, writing `predictions_direct_k3_seed0.jsonl` and
   `score_direct_k3_seed0/`.
 - `semantic`: appendix-style real-scenario extensions adapted from external
   benchmarks. Current implemented domains are PII redaction, hallucination
@@ -196,6 +196,12 @@ bash ./scripts/score_predictions.sh \
   --rs-at-k 3 \
   --write-csv
 ```
+
+Scoring writes both generic reports and paper-facing metrics. Use
+`summary.json` for overall RS/RG summaries and `paper_metrics.json` for the
+main-table fields. On the order-sensitive tracks, `paper_metrics.json` includes
+`ocs_at_k`; for `order_f`, it also includes `rs_pre@k`, `rs_mid@k`, and
+`rs_post@k`.
 
 Summarize one or more scored models into leaderboard-style reports:
 
@@ -364,6 +370,7 @@ data/evaluation/
       predictions_direct_k3_seed0.jsonl
       score_direct_k3_seed0/
         summary.json
+        paper_metrics.json
         instance_metrics.jsonl
         scored_variant_predictions.jsonl
   order_f/

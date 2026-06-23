@@ -68,14 +68,22 @@ def _score_variant(row: dict[str, Any], variant: dict[str, Any]) -> dict[str, An
         "source_track": row.get("source_track") or row.get("benchmark_track"),
         "track_family": row.get("track_family") or ("semantic_extension" if str(row.get("benchmark_track", "")).startswith("semantic_") else "core_rule"),
         "domain": row.get("domain"),
+        "source_domain": row.get("source_domain"),
         "operator": row.get("operator"),
+        "operator_kind": row.get("operator_kind"),
         "semantic_operator": row.get("semantic_operator"),
+        "reference_status": row.get("reference_status"),
+        "order_family_id": row.get("order_family_id"),
+        "order_slot": row.get("order_slot"),
+        "order_group_instance_id": row.get("order_group_instance_id"),
+        "required_slots_for_group_success": row.get("required_slots_for_group_success"),
         "scoring_profile": scoring_profile,
         "output_format": row.get("output_format"),
         "prompt_variant_index": int(variant.get("prompt_variant_index", 0) or 0),
         "prompt_style_id": variant.get("prompt_style_id"),
         "prediction_error": variant.get("prediction_error"),
         "valid_prediction": valid_prediction,
+        "scorable_prediction": valid_prediction,
         "reports_refinement_gain": bool(row.get("reports_refinement_gain")),
     }
     if not valid_prediction:
@@ -107,6 +115,7 @@ def _score_variant(row: dict[str, Any], variant: dict[str, Any]) -> dict[str, An
             reference_text=row.get("reference_text"),
             predicted_status=predicted_status,
             predicted_text=predicted_refined_text,
+            reference_text_full_run=row.get("reference_text_full_run"),
         )
         recipe_success = bool(json_metrics["json_exact_match"]) and bool(text_metrics["recipe_success"])
         base.update(json_metrics)
@@ -120,6 +129,7 @@ def _score_variant(row: dict[str, Any], variant: dict[str, Any]) -> dict[str, An
         reference_text=row.get("reference_text"),
         predicted_status=predicted_status,
         predicted_text=predicted_text,
+        reference_text_full_run=row.get("reference_text_full_run"),
     )
     base.update(metrics)
     base["primary_score"] = 1.0 if metrics["recipe_success"] else 0.0
@@ -172,11 +182,21 @@ def score_rows(
         scored_variants.sort(key=lambda item: int(item.get("prompt_variant_index", 0) or 0))
         scored_for_at_k = _sample_variants(row, scored_variants, sample_size=sample_size, sample_seed=sample_seed)
         variant_rows.extend(scored_variants)
-        success_values = [bool(item.get("recipe_success")) for item in scored_variants]
-        success_at_k_values = [bool(item.get("recipe_success")) for item in scored_for_at_k]
+        scorable_variants = [item for item in scored_variants if bool(item.get("scorable_prediction"))]
+        scorable_at_k = [item for item in scored_for_at_k if bool(item.get("scorable_prediction"))]
+        required_at_k_count = len(scored_variants) if sample_size <= 0 else sample_size
+        at_k_complete = len(scored_for_at_k) >= required_at_k_count and len(scorable_at_k) >= required_at_k_count
+        success_values = [bool(item.get("recipe_success")) for item in scorable_variants]
+        success_at_k_values = [bool(item.get("recipe_success")) for item in scorable_at_k]
+        prompt0_row = next((item for item in scored_variants if int(item.get("prompt_variant_index", 0) or 0) == 0), None)
+        prompt0_success = (
+            bool(prompt0_row.get("recipe_success"))
+            if prompt0_row is not None and bool(prompt0_row.get("scorable_prediction"))
+            else None
+        )
         rg_values = [
             float(item["refinement_gain"])
-            for item in scored_variants
+            for item in scorable_variants
             if item.get("refinement_gain") is not None
         ]
         instance_rows.append(
@@ -187,22 +207,157 @@ def score_rows(
                 "source_track": row.get("source_track"),
                 "track_family": row.get("track_family"),
                 "domain": row.get("domain"),
+                "source_domain": row.get("source_domain"),
+                "operator": row.get("operator"),
+                "operator_kind": row.get("operator_kind"),
+                "reference_status": row.get("reference_status"),
+                "order_family_id": row.get("order_family_id"),
+                "order_slot": row.get("order_slot"),
+                "order_group_instance_id": row.get("order_group_instance_id"),
+                "required_slots_for_group_success": row.get("required_slots_for_group_success"),
                 "scoring_profile": row.get("scoring_profile"),
                 "num_prompt_variants": len(scored_variants),
                 "num_sampled_prompt_variants": len(scored_for_at_k),
+                "num_scorable_variants": len(scorable_variants),
+                "num_sampled_scorable_variants": len(scorable_at_k),
+                "required_at_k_prompt_variants": required_at_k_count,
+                "at_k_complete": at_k_complete,
                 "rs": (sum(success_values) / len(success_values) if success_values else 0.0),
-                "rs_at_k": (any(success_at_k_values) if success_at_k_values else None),
-                "rs_prompt0": (success_values[0] if success_values else None),
+                "rs_at_k": (any(success_at_k_values) if at_k_complete else None),
+                "rs_prompt0": prompt0_success,
                 "mean_rg": (sum(rg_values) / len(rg_values) if rg_values else None),
                 "reports_refinement_gain": bool(row.get("reports_refinement_gain")),
             }
         )
     summary = aggregate(instance_rows, variant_rows, sample_size=sample_size, sample_seed=sample_seed)
+    for row in rows:
+        if row.get("request_model"):
+            summary["model"] = row.get("request_model")
+            break
     return variant_rows, instance_rows, summary
 
 
 def _mean(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0.0
+
+
+def _mean_optional(values: list[Any]) -> float | None:
+    clean: list[float] = []
+    for value in values:
+        if value is None:
+            continue
+        try:
+            clean.append(float(value))
+        except (TypeError, ValueError):
+            continue
+    return sum(clean) / len(clean) if clean else None
+
+
+def _rate_optional(rows: list[dict[str, Any]], key: str) -> float | None:
+    values = [row.get(key) for row in rows if row.get(key) is not None]
+    if not values:
+        return None
+    return sum(1.0 if bool(value) else 0.0 for value in values) / len(values)
+
+
+def _canonical_order_slot(value: Any) -> str:
+    slot = str(value or "").strip().lower()
+    return {
+        "front": "pre",
+        "pre": "pre",
+        "middle": "mid",
+        "mid": "mid",
+        "end": "post",
+        "post": "post",
+    }.get(slot, slot)
+
+
+def _build_order_group_rows(instance_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in instance_rows:
+        group_id = row.get("order_group_instance_id")
+        if group_id:
+            grouped[str(group_id)].append(row)
+    output: list[dict[str, Any]] = []
+    for group_id, bucket in sorted(grouped.items()):
+        required_slots: list[str] = []
+        for row in bucket:
+            raw_required = row.get("required_slots_for_group_success")
+            if isinstance(raw_required, list):
+                required_slots.extend(str(slot) for slot in raw_required if str(slot or "").strip())
+            elif isinstance(raw_required, str):
+                required_slots.extend(slot.strip() for slot in raw_required.split("|") if slot.strip())
+        required_slots = sorted({_canonical_order_slot(slot) for slot in required_slots})
+        slot_bucket = bucket
+        missing_required_slots: list[str] = []
+        if required_slots:
+            rows_by_slot = {_canonical_order_slot(row.get("order_slot")): row for row in bucket}
+            missing_required_slots = [slot for slot in required_slots if slot not in rows_by_slot]
+            slot_bucket = [rows_by_slot[slot] for slot in required_slots if slot in rows_by_slot]
+        complete_group = not missing_required_slots and bool(slot_bucket)
+        output.append(
+            {
+                "order_group_instance_id": group_id,
+                "slot_count": len(bucket),
+                "required_slots_for_group_success": required_slots,
+                "missing_required_slots": missing_required_slots,
+                "ocs_at_k": (
+                    all(bool(row.get("rs_at_k")) for row in slot_bucket)
+                    if complete_group and all(row.get("rs_at_k") is not None for row in slot_bucket)
+                    else None
+                ),
+                "ocs": (
+                    all(bool(row.get("rs_prompt0")) for row in slot_bucket)
+                    if complete_group and all(row.get("rs_prompt0") is not None for row in slot_bucket)
+                    else None
+                ),
+            }
+        )
+    return output
+
+
+def _slot_summary(instance_rows: list[dict[str, Any]], slot: str) -> dict[str, Any]:
+    slot_rows = [row for row in instance_rows if _canonical_order_slot(row.get("order_slot")) == slot]
+    return {
+        f"rs_{slot}@k": _rate_optional(slot_rows, "rs_at_k"),
+        f"rg_{slot}": _mean_optional([row.get("mean_rg") for row in slot_rows]),
+    }
+
+
+def _operator_kind_summary(instance_rows: list[dict[str, Any]], kind: str) -> dict[str, Any]:
+    rows = [row for row in instance_rows if str(row.get("operator_kind") or "") == kind]
+    return {
+        f"atomic_{kind}_rs@k": _rate_optional(rows, "rs_at_k"),
+    }
+
+
+def _paper_metrics_payload(summary: dict[str, Any]) -> dict[str, Any]:
+    overall = summary.get("overall") or {}
+    payload: dict[str, Any] = {
+        "track": summary.get("track"),
+        "model": summary.get("model"),
+        "num_instances": summary.get("num_instances"),
+        "prompt_variant_sample_size": summary.get("prompt_variant_sample_size"),
+        "prompt_variant_sampling_seed": summary.get("prompt_variant_sampling_seed"),
+        "mean_rs@k": overall.get("mean_rs_at_k"),
+        "mean_rs": overall.get("mean_rs"),
+        "mean_rg": overall.get("mean_rg"),
+    }
+    for key in (
+        "ocs",
+        "ocs_at_k",
+        "rs_pre@k",
+        "rg_pre",
+        "rs_mid@k",
+        "rg_mid",
+        "rs_post@k",
+        "rg_post",
+        "atomic_mapper_rs@k",
+        "atomic_filter_rs@k",
+    ):
+        if key in summary:
+            payload[key] = summary[key]
+    return payload
 
 
 def _summarize_bucket(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -238,9 +393,14 @@ def aggregate(
         by_scoring[str(row.get("scoring_profile"))].append(row)
 
     variant_counts = Counter(row.get("prompt_variant_index") for row in variant_rows)
-    return {
+    order_group_rows = _build_order_group_rows(instance_rows)
+    track_names = [str(row.get("benchmark_track") or "") for row in instance_rows]
+    track = next((name for name in track_names if name), None)
+    summary = {
+        "track": track,
         "num_instances": len(instance_rows),
         "num_variant_predictions": len(variant_rows),
+        "prompt_variant_sample_size": sample_size if sample_size > 0 else "all",
         "prompt_variant_sample_size_for_rs_at_k": sample_size if sample_size > 0 else "all",
         "prompt_variant_sampling_seed": sample_seed,
         "variant_index_counts": {str(key): value for key, value in sorted(variant_counts.items())},
@@ -250,6 +410,15 @@ def aggregate(
         "by_source_track": {key: _summarize_bucket(value) for key, value in sorted(by_source_track.items())},
         "by_scoring_profile": {key: _summarize_bucket(value) for key, value in sorted(by_scoring.items())},
     }
+    if order_group_rows:
+        summary["num_order_groups"] = len(order_group_rows)
+        summary["ocs_at_k"] = _rate_optional(order_group_rows, "ocs_at_k")
+        summary["ocs"] = _rate_optional(order_group_rows, "ocs")
+        for slot in ("pre", "mid", "post"):
+            summary.update(_slot_summary(instance_rows, slot))
+    summary.update(_operator_kind_summary(instance_rows, "mapper"))
+    summary.update(_operator_kind_summary(instance_rows, "filter"))
+    return summary
 
 
 def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
@@ -293,6 +462,7 @@ def main() -> None:
     write_jsonl(output_dir / "scored_variant_predictions.jsonl", variant_rows)
     write_jsonl(output_dir / "instance_metrics.jsonl", instance_rows)
     write_json(output_dir / "summary.json", summary)
+    write_json(output_dir / "paper_metrics.json", _paper_metrics_payload(summary))
     if args.write_csv:
         _write_csv(output_dir / "instance_metrics.csv", instance_rows)
         _write_csv(output_dir / "scored_variant_predictions.csv", variant_rows)
