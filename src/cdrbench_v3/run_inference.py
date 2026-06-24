@@ -19,6 +19,7 @@ SYSTEM_PROMPT = (
     "You are a careful data refinement engine. Follow the user request exactly. "
     "Return only the required output."
 )
+PROMPT_MODES = ("direct", "few_shot", "plan_first", "state_aware")
 
 OVERSEAS_BASE_URL = "https://eval.dashscope.aliyuncs.com/compatible-mode/v1"
 DOMESTIC_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -447,6 +448,179 @@ def _render_prompt(row: dict[str, Any], variant: dict[str, Any]) -> str:
     )
 
 
+def _tagged_output_hint() -> str:
+    return "<status>KEEP|DROP</status><clean_text>final text</clean_text>"
+
+
+def _reference_tagged_output(row: dict[str, Any]) -> str:
+    return (
+        f"<status>{str(row.get('reference_status') or '').strip().upper()}</status>"
+        f"<clean_text>{str(row.get('reference_text') or '')}</clean_text>"
+    )
+
+
+def _select_variant_for_style(row: dict[str, Any], preferred_style_id: str | None) -> dict[str, Any]:
+    variants = _prompt_variants(row)
+    if variants:
+        if preferred_style_id:
+            for variant in variants:
+                if str(variant.get("style_id") or "") == preferred_style_id:
+                    return variant
+        return variants[0]
+    return {"style_id": "", "style_label": "", "user_requirement": str(row.get("user_requirement") or "")}
+
+
+def _few_shot_examples(
+    candidate_rows: list[dict[str, Any]],
+    row: dict[str, Any],
+    *,
+    preferred_style_id: str,
+    max_examples: int = 2,
+) -> list[dict[str, str]]:
+    current_id = str(row.get("instance_id") or "")
+
+    def rank(candidate: dict[str, Any]) -> tuple[int, int, str, str]:
+        input_length = int(candidate.get("input_length_chars", 0) or 0)
+        reference_length = len(str(candidate.get("reference_text") or ""))
+        return (
+            input_length if input_length > 0 else len(str(candidate.get("input_text") or "")),
+            reference_length,
+            str(candidate.get("source_record_id") or ""),
+            str(candidate.get("instance_id") or ""),
+        )
+
+    candidates = [
+        candidate
+        for candidate in candidate_rows
+        if str(candidate.get("instance_id") or "") != current_id
+        and candidate.get("output_format") not in {"json", "json_and_tagged_text"}
+    ]
+    examples = []
+    for candidate in sorted(candidates, key=rank)[:max_examples]:
+        variant = _select_variant_for_style(candidate, preferred_style_id)
+        examples.append(
+            {
+                "user_requirement": str(variant.get("user_requirement") or "").strip(),
+                "input_text": str(candidate.get("input_text") or ""),
+                "reference_output": _reference_tagged_output(candidate),
+            }
+        )
+    return examples
+
+
+def _format_few_shot_prompt(
+    row: dict[str, Any],
+    variant: dict[str, Any],
+    *,
+    examples: list[dict[str, str]],
+) -> str:
+    sections = []
+    for index, example in enumerate(examples, start=1):
+        sections.append(
+            "\n".join(
+                [
+                    f"Example {index}",
+                    "Task:",
+                    example["user_requirement"],
+                    "",
+                    "Raw input text:",
+                    "<input>",
+                    example["input_text"],
+                    "</input>",
+                    "",
+                    "Correct output:",
+                    example["reference_output"],
+                ]
+            )
+        )
+    sections.append(_render_prompt(row, variant))
+    return "\n\n".join(section for section in sections if section.strip())
+
+
+def _format_filter_rule(op_name: str, params: Any) -> str:
+    if isinstance(params, dict) and params:
+        detail = ", ".join(f"{key}={value}" for key, value in sorted(params.items()))
+        return f"{op_name} with {detail}"
+    return op_name
+
+
+def _format_plan_first_prompt(row: dict[str, Any], variant: dict[str, Any]) -> str:
+    requirement = variant.get("user_requirement") or ""
+    input_text = row.get("input_text") or ""
+    return (
+        f"Task:\n{requirement}\n\n"
+        "Before cleaning the text, first write a short analysis block in <analyze>...</analyze>.\n"
+        "Use that block to restate the requested procedure as a concise standardized execution recipe.\n"
+        "List the steps in order. For each step, say what to do and include the relevant rule or threshold when there is one.\n\n"
+        "Example analysis format:\n"
+        "<analyze>\n"
+        "Step 1: Remove repeated sentences.\n"
+        "Step 2: Normalize whitespace.\n"
+        "Step 3: Apply the word repetition filter with ratio <= 0.2, and drop the text if it fails.\n"
+        "</analyze>\n\n"
+        f"Raw input text:\n<input>\n{input_text}\n</input>\n\n"
+        "Then execute the procedure on the text.\n"
+        f"After the analysis block, output the final tagged result using exactly this format: {_tagged_output_hint()}\n"
+        "Rules:\n"
+        "- Output exactly one <analyze>...</analyze> block before the final tagged result.\n"
+        "- Inside <analyze>, write an ordered step list for the intended execution recipe.\n"
+        "- For each step, include the relevant rule or threshold when there is one.\n"
+        "- status must be KEEP or DROP inside <status>...</status>.\n"
+        "- Put the output text inside <clean_text>...</clean_text>.\n"
+        "- If status is DROP, stop at the rejection point and return the current text.\n"
+        "- Do not output markdown, code fences, or explanations outside <analyze>.\n"
+    )
+
+
+def _format_state_aware_prompt(row: dict[str, Any], variant: dict[str, Any]) -> str:
+    requirement = variant.get("user_requirement") or ""
+    input_text = row.get("input_text") or ""
+    return (
+        f"Task:\n{requirement}\n\n"
+        "Before cleaning the text, first write a short analysis block in <analyze>...</analyze>.\n"
+        "Use that block to identify the intermediate text states that matter for correctness.\n"
+        "You may refer to them with names such as S0, S1, and S2.\n"
+        "Only text-changing steps should create a new state, while filter steps should be described as operating on the relevant existing state.\n"
+        "Focus on which operation or filter should be applied to which state, especially when order matters.\n\n"
+        "Example analysis format:\n"
+        "<analyze>\n"
+        "A useful state view is S0 = raw text and S1 = text after repeated-sentence removal.\n"
+        "The key risk is applying the repetition filter on S0 instead of S1; this filter should be evaluated on S1 because the cleanup step changes the statistics.\n"
+        "</analyze>\n\n"
+        "Then apply the intended procedure to the text. If a filter rejects the sample, stop at the last valid state and return DROP.\n\n"
+        f"Raw input text:\n<input>\n{input_text}\n</input>\n\n"
+        "After the analysis block, return the final tagged output only.\n"
+        f"Use exactly this format: {_tagged_output_hint()}\n"
+        "Rules:\n"
+        "- Output exactly one <analyze>...</analyze> block before the final tagged result.\n"
+        "- In <analyze>, use state language only when it helps clarify which intermediate text a key operation or filter should use.\n"
+        "- Focus on state confusions that could materially change the result, especially order-sensitive filter decisions.\n"
+        "- status must be KEEP or DROP inside <status>...</status>.\n"
+        "- Put the output text inside <clean_text>...</clean_text>.\n"
+        "- If status is KEEP, clean_text must be the final state text.\n"
+        "- If status is DROP, clean_text must be the text state at the point where the sample is rejected.\n"
+        "- Do not output markdown, code fences, or explanations outside <analyze>.\n"
+    )
+
+
+def _render_prompt_for_mode(
+    row: dict[str, Any],
+    variant: dict[str, Any],
+    *,
+    prompt_mode: str,
+    few_shot_examples: list[dict[str, str]] | None = None,
+) -> str:
+    if row.get("output_format") in {"json", "json_and_tagged_text"}:
+        return _render_prompt(row, variant)
+    if prompt_mode == "few_shot":
+        return _format_few_shot_prompt(row, variant, examples=few_shot_examples or [])
+    if prompt_mode == "plan_first":
+        return _format_plan_first_prompt(row, variant)
+    if prompt_mode == "state_aware":
+        return _format_state_aware_prompt(row, variant)
+    return _render_prompt(row, variant)
+
+
 def _parse_tagged(text: str) -> tuple[str, str]:
     status = "KEEP"
     status_match = re.search(r"<status>\s*(KEEP|DROP)\s*</status>", text, re.IGNORECASE)
@@ -458,10 +632,24 @@ def _parse_tagged(text: str) -> tuple[str, str]:
     return status, text.strip()
 
 
-def _infer_one(backend: Any, row: dict[str, Any], index: int) -> dict[str, Any]:
+def _infer_one(
+    backend: Any,
+    row: dict[str, Any],
+    index: int,
+    *,
+    prompt_mode: str,
+    candidate_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
     variants = _prompt_variants(row)
     variant = variants[index] if index < len(variants) else variants[0]
-    prompt = _render_prompt(row, variant)
+    examples = None
+    if prompt_mode == "few_shot":
+        examples = _few_shot_examples(
+            candidate_rows,
+            row,
+            preferred_style_id=str(variant.get("style_id") or ""),
+        )
+    prompt = _render_prompt_for_mode(row, variant, prompt_mode=prompt_mode, few_shot_examples=examples)
     messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}]
     try:
         raw = backend._call_once(messages)
@@ -507,7 +695,7 @@ def main() -> None:
     parser.add_argument("--prompt-style-ids", default="")
     parser.add_argument("--prompt-variant-sample-size", type=int, default=0)
     parser.add_argument("--prompt-variant-sampling-seed", type=int, default=0)
-    parser.add_argument("--prompt-mode", choices=["direct"], default="direct")
+    parser.add_argument("--prompt-mode", choices=PROMPT_MODES, default="direct")
     parser.add_argument("--max-samples", type=int, default=0)
     parser.add_argument("--max-input-chars", type=int, default=0)
     parser.add_argument("--concurrency", type=int, default=5)
@@ -529,6 +717,7 @@ def main() -> None:
         rows = rows[: args.max_samples]
     if args.max_input_chars > 0:
         rows = [row for row in rows if len(str(row.get("input_text") or "")) <= args.max_input_chars]
+    candidate_rows = list(rows)
 
     existing: list[dict[str, Any]] = []
     done_ids: set[str] = set()
@@ -571,7 +760,16 @@ def main() -> None:
         out["selected_prompt_style_ids"] = args.prompt_style_ids
         out["prompt_variant_sample_size"] = args.prompt_variant_sample_size
         out["prompt_variant_sampling_seed"] = args.prompt_variant_sampling_seed
-        out["variant_predictions"] = [_infer_one(backend, row, index) for index in indices]
+        out["variant_predictions"] = [
+            _infer_one(
+                backend,
+                row,
+                index,
+                prompt_mode=args.prompt_mode,
+                candidate_rows=candidate_rows,
+            )
+            for index in indices
+        ]
         return out
 
     output_rows = list(existing)

@@ -22,7 +22,8 @@ Options:
   --prompt-style-ids <csv>                           Optional style-id filter
   --prompt-variant-sample-size <int>                 Default: 3
   --prompt-variant-sampling-seed <int>               Default: 0
-  --prompt-mode <direct>                             Default: direct
+  --prompt-mode <direct|few_shot|plan_first|state_aware>
+                                                    Default: direct
   --max-samples <int>                                Default: 0
   --max-input-chars <int>                            Default: 0
   --concurrency <int>                                Default: 5

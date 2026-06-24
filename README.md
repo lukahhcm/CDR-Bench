@@ -167,6 +167,12 @@ The `scripts/eval` wrappers default to the release-local `data/evaluation`
 directory. Lower-level smoke-test scripts may still write to `data/results`
 when called directly.
 
+The default prompt mode is `direct`, which is the mode used for the main paper
+tables. For prompt-mode ablations on the main tracks, set `PROMPT_MODE` or pass
+`--prompt-mode` with one of `direct`, `few_shot`, `plan_first`, or
+`state_aware`; outputs are named accordingly, for example
+`predictions_plan_first_k3_seed0.jsonl` and `score_plan_first_k3_seed0/`.
+
 Remote API example:
 
 ```bash

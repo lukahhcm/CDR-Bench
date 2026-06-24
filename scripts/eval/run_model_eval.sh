@@ -6,8 +6,8 @@ usage() {
 Usage:
   run_model_eval.sh [infer|score|all]
   run_model_eval.sh --mode <infer|score|all>
-  run_model_eval.sh [infer|score|all] --mode <direct>
-  run_model_eval.sh --prompt-mode <direct>
+  run_model_eval.sh [infer|score|all] --mode <direct|few_shot|plan_first|state_aware>
+  run_model_eval.sh --prompt-mode <direct|few_shot|plan_first|state_aware>
 
 Environment variables, usually set by thin wrappers:
   EVAL_SUITE                     main or semantic. Default: main
@@ -60,7 +60,7 @@ while [[ $# -gt 0 ]]; do
         infer|score|all)
           MODE="$2"
           ;;
-        direct)
+        direct|few_shot|plan_first|state_aware)
           PROMPT_MODE_OVERRIDE="$2"
           ;;
         *)
@@ -129,9 +129,9 @@ if [[ -n "${PROMPT_MODE_OVERRIDE}" ]]; then
   PROMPT_MODE="${PROMPT_MODE_OVERRIDE}"
 fi
 case "${PROMPT_MODE}" in
-  direct) ;;
+  direct|few_shot|plan_first|state_aware) ;;
   *)
-    echo "Unsupported prompt mode in release_v3: ${PROMPT_MODE}. Only direct is packaged." >&2
+    echo "Unsupported prompt mode in release_v3: ${PROMPT_MODE}" >&2
     exit 1
     ;;
 esac
