@@ -16,8 +16,8 @@ import requests
 from cdrbench_v3.io import read_jsonl, write_jsonl
 
 SYSTEM_PROMPT = (
-    "You are a careful data refinement engine. Follow the user request exactly. "
-    "Return only the required output."
+    "You are a careful data refinement engine. Follow the user's data refinement request "
+    "exactly and in order. Return only the required tagged output. Do not explain your reasoning."
 )
 PROMPT_MODES = ("direct", "few_shot", "plan_first", "state_aware")
 
@@ -442,14 +442,25 @@ def _render_prompt(row: dict[str, Any], variant: dict[str, Any]) -> str:
     return (
         f"Task:\n{requirement}\n\n"
         f"Raw input text:\n<input>\n{input_text}\n</input>\n\n"
-        "Return tagged output only using exactly this format: "
+        "Return tagged output only.\n"
+        "Use exactly this format: "
         "<status>KEEP</status><clean_text>...</clean_text> or "
-        "<status>DROP</status><clean_text>...</clean_text>."
+        "<status>DROP</status><clean_text>...</clean_text>\n"
+        "Rules:\n"
+        "- status must be KEEP or DROP inside <status>...</status>.\n"
+        "- Put the output text inside <clean_text>...</clean_text>.\n"
+        "- If status is KEEP, clean_text must be the final refined text.\n"
+        "- If status is DROP, clean_text must be the text state at the point where the sample is rejected.\n"
+        "- Preserve backslashes exactly as plain text; do not JSON-encode them.\n"
+        "- Do not output markdown, code fences, or explanations.\n"
     )
 
 
 def _tagged_output_hint() -> str:
-    return "<status>KEEP|DROP</status><clean_text>final text</clean_text>"
+    return (
+        "<status>KEEP</status><clean_text>...</clean_text> "
+        "or <status>DROP</status><clean_text>...</clean_text>"
+    )
 
 
 def _reference_tagged_output(row: dict[str, Any]) -> str:
@@ -470,42 +481,32 @@ def _select_variant_for_style(row: dict[str, Any], preferred_style_id: str | Non
     return {"style_id": "", "style_label": "", "user_requirement": str(row.get("user_requirement") or "")}
 
 
-def _few_shot_examples(
-    candidate_rows: list[dict[str, Any]],
-    row: dict[str, Any],
-    *,
-    preferred_style_id: str,
-    max_examples: int = 2,
-) -> list[dict[str, str]]:
-    current_id = str(row.get("instance_id") or "")
+FEW_SHOT_EXAMPLES: tuple[dict[str, str], ...] = (
+    {
+        "user_requirement": (
+            "Remove any URLs and web links from the text, then normalize "
+            "repeated whitespace into single spaces."
+        ),
+        "input_text": (
+            "Visit https://example.com for details.   The site offers great resources."
+        ),
+        "reference_output": (
+            "<status>KEEP</status><clean_text>Visit for details. "
+            "The site offers great resources.</clean_text>"
+        ),
+    },
+    {
+        "user_requirement": (
+            "Remove any URLs, then keep the text only if it contains at least 10 words."
+        ),
+        "input_text": "See https://example.com now.",
+        "reference_output": "<status>DROP</status><clean_text>See now.</clean_text>",
+    },
+)
 
-    def rank(candidate: dict[str, Any]) -> tuple[int, int, str, str]:
-        input_length = int(candidate.get("input_length_chars", 0) or 0)
-        reference_length = len(str(candidate.get("reference_text") or ""))
-        return (
-            input_length if input_length > 0 else len(str(candidate.get("input_text") or "")),
-            reference_length,
-            str(candidate.get("source_record_id") or ""),
-            str(candidate.get("instance_id") or ""),
-        )
 
-    candidates = [
-        candidate
-        for candidate in candidate_rows
-        if str(candidate.get("instance_id") or "") != current_id
-        and candidate.get("output_format") not in {"json", "json_and_tagged_text"}
-    ]
-    examples = []
-    for candidate in sorted(candidates, key=rank)[:max_examples]:
-        variant = _select_variant_for_style(candidate, preferred_style_id)
-        examples.append(
-            {
-                "user_requirement": str(variant.get("user_requirement") or "").strip(),
-                "input_text": str(candidate.get("input_text") or ""),
-                "reference_output": _reference_tagged_output(candidate),
-            }
-        )
-    return examples
+def _few_shot_examples() -> list[dict[str, str]]:
+    return [dict(example) for example in FEW_SHOT_EXAMPLES]
 
 
 def _format_few_shot_prompt(
@@ -587,7 +588,12 @@ def _format_state_aware_prompt(row: dict[str, Any], variant: dict[str, Any]) -> 
         "A useful state view is S0 = raw text and S1 = text after repeated-sentence removal.\n"
         "The key risk is applying the repetition filter on S0 instead of S1; this filter should be evaluated on S1 because the cleanup step changes the statistics.\n"
         "</analyze>\n\n"
-        "Then apply the intended procedure to the text. If a filter rejects the sample, stop at the last valid state and return DROP.\n\n"
+        "In that analysis:\n"
+        "- refer only to the states or transitions most likely to change the result if used incorrectly;\n"
+        "- emphasize the specific state where an important filter or operation must be applied;\n"
+        "- do not analyze every step if most steps are unambiguous.\n\n"
+        "Then apply the intended procedure to the text.\n"
+        "If a filter rejects the sample, stop at the last valid state and return DROP.\n\n"
         f"Raw input text:\n<input>\n{input_text}\n</input>\n\n"
         "After the analysis block, return the final tagged output only.\n"
         f"Use exactly this format: {_tagged_output_hint()}\n"
@@ -644,11 +650,7 @@ def _infer_one(
     variant = variants[index] if index < len(variants) else variants[0]
     examples = None
     if prompt_mode == "few_shot":
-        examples = _few_shot_examples(
-            candidate_rows,
-            row,
-            preferred_style_id=str(variant.get("style_id") or ""),
-        )
+        examples = _few_shot_examples()
     prompt = _render_prompt_for_mode(row, variant, prompt_mode=prompt_mode, few_shot_examples=examples)
     messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}]
     try:

@@ -61,7 +61,7 @@ scoring.
 | `semantic_rubric_*` | HelpSteer2 rubric scoring extension | JSON |
 | `semantic_safety_*` | Aegis safety tagging extension | JSON |
 
-The core benchmark contains **3,319 tasks**, **29 operators**, and **63 unique
+The core benchmark contains **3,462 tasks**, **29 operators**, and **63 unique
 recipes**. The release utilities package the core rule-based tracks together
 with semantic extension tracks under one schema.
 

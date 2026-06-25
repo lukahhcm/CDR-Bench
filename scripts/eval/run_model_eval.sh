@@ -138,6 +138,11 @@ esac
 MAX_SAMPLES="${MAX_SAMPLES:-0}"
 MAX_INPUT_CHARS="${MAX_INPUT_CHARS:-0}"
 MAX_TOKENS="${MAX_TOKENS:-0}"
+if [[ "${MAX_TOKENS}" != "0" ]]; then
+  echo "MAX_TOKENS must be 0 for benchmark evaluation; got ${MAX_TOKENS}." >&2
+  echo "Use the model/server context length instead of truncating generation at the runner level." >&2
+  exit 1
+fi
 TEMPERATURE="${TEMPERATURE:-0}"
 MAX_RETRIES="${MAX_RETRIES:-1}"
 RETRY_SLEEP_SECONDS="${RETRY_SLEEP_SECONDS:-${RETRY_DELAY:-2.0}}"

@@ -99,15 +99,16 @@ def parse_jsonish(value: Any) -> Any | None:
                 return json.loads(match.group(1).strip())
             except (TypeError, ValueError):
                 pass
-    # Conservative extraction for common object/array responses.
+    # Conservative extraction for common object/array responses. raw_decode
+    # accepts trailing text without the quadratic retry loop used previously.
     start_candidates = [idx for idx in (text.find("{"), text.find("[")) if idx >= 0]
     if start_candidates:
         start = min(start_candidates)
-        for end in range(len(text), start, -1):
-            try:
-                return json.loads(text[start:end])
-            except (TypeError, ValueError):
-                continue
+        try:
+            parsed, _ = json.JSONDecoder().raw_decode(text[start:])
+            return parsed
+        except (TypeError, ValueError):
+            pass
     return None
 
 
