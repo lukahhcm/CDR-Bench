@@ -17,10 +17,6 @@ Yaliang Li<sup>3</sup>
 
 <sup>1</sup>HKUST &nbsp; <sup>2</sup>NUS &nbsp; <sup>3</sup>Tongyi Lab, Alibaba Group
 
-<br>
-
-<small>* Work done during internship at Alibaba Group. &nbsp; &dagger; Corresponding authors.</small>
-
 [![Code](https://img.shields.io/badge/Code-GitHub-181717?logo=github)](https://github.com/lukahhcm/CDR-Bench)
 [![Dataset](https://img.shields.io/badge/%F0%9F%A4%97%20Dataset-Hugging%20Face-blue)](https://huggingface.co/datasets/lukahh/CDR-Bench)
 [![arXiv](https://img.shields.io/badge/arXiv-coming%20soon-B31B1B.svg?logo=arxiv&logoColor=white)](https://arxiv.org/)
