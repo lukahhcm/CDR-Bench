@@ -14,6 +14,21 @@ MAX_NUM_BATCHED_TOKENS="${MAX_NUM_BATCHED_TOKENS:-32768}"
 
 export VLLM_USE_MODELSCOPE="${VLLM_USE_MODELSCOPE:-False}"
 
+if ! python - <<'PY' >/dev/null 2>&1
+import vllm  # noqa: F401
+PY
+then
+  cat >&2 <<'EOF'
+[start_vllm] ERROR: vLLM is not installed in the current Python environment.
+
+The CDR-Bench requirements.txt intentionally installs only the lightweight
+evaluation client dependencies. To use scripts/start_vllm.sh, activate a
+separate Linux/CUDA serving environment and install vLLM following the official
+vLLM documentation for your hardware and PyTorch/CUDA stack.
+EOF
+  exit 1
+fi
+
 echo "========================================================"
 echo "[start_vllm] MODEL_PATH = ${MODEL_PATH}"
 echo "[start_vllm] MODEL_NAME = ${MODEL_NAME}"

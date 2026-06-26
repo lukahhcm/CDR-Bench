@@ -1,8 +1,25 @@
 <div align="center">
 
-# CDR-Bench
+# CDR-Bench: Evaluating Faithful Execution of Compositional, Order-Sensitive Data Refinement Recipes
 
-**Can LLMs execute compositional, order-sensitive data refinement recipes?**
+<b>
+Yuchen Huang<sup>1,3</sup>* &nbsp;
+Xiang Li<sup>2,3</sup>* &nbsp;
+Zhenqing Ling<sup>3</sup> &nbsp;
+Sijia Li<sup>1</sup> &nbsp;
+Qianli Shen<sup>3</sup> <br>
+Daoyuan Chen<sup>3</sup>&dagger; &nbsp;
+Yi R. (May) Fung<sup>1</sup>&dagger; &nbsp;
+Yaliang Li<sup>3</sup>
+</b>
+
+<br>
+
+<sup>1</sup>HKUST &nbsp; <sup>2</sup>NUS &nbsp; <sup>3</sup>Tongyi Lab, Alibaba Group
+
+<br>
+
+<small>* Work done during internship at Alibaba Group. &nbsp; &dagger; Corresponding authors.</small>
 
 [![Code](https://img.shields.io/badge/Code-GitHub-181717?logo=github)](https://github.com/lukahhcm/CDR-Bench)
 [![Dataset](https://img.shields.io/badge/%F0%9F%A4%97%20Dataset-Hugging%20Face-blue)](https://huggingface.co/datasets/lukahh/CDR-Bench)
@@ -12,16 +29,26 @@
 
 ## Introduction
 
-CDR-Bench is a benchmark for evaluating whether language models can directly
-execute multi-step data refinement procedures over text. A model receives a raw
-document and a natural-language recipe, then must return both the refined text
-and the final `KEEP` / `DROP` decision.
+Data refinement transforms noisy, heterogeneous raw text into clean,
+task-ready data for modern LLM pipelines, including pre-training corpus
+construction, RAG preparation, privacy-sensitive processing, and quality
+filtering. Although LLMs make it possible to specify refinement goals in
+natural language, real data refinement rarely consists of a single isolated
+edit. It often requires a compositional, order-sensitive pipeline in which each
+operation changes the intermediate text state seen by later operations.
 
-Unlike general text-editing benchmarks, CDR-Bench focuses on procedural
-faithfulness: the model must apply the right operators to the right intermediate
-text state, in the right order. Unlike agent benchmarks, it isolates recipe
-execution from code generation, tool use, sandbox failures, and LLM-as-a-judge
-scoring.
+CDR-Bench evaluates whether LLMs can directly execute these refinement recipes.
+A model receives a raw document and a natural-language recipe, then must return
+both the refined text and the final `KEEP` / `DROP` decision. Correctness is
+therefore procedural: the model must apply the right operators to the right
+intermediate states in the right order, rather than merely produce a plausible
+surface-level rewrite.
+
+The benchmark contains **3,462 tasks** across Web Refinement, LaTeX Refinement,
+RAG Preparation, and Privacy Redaction, covering **29 operators** and **63
+unique recipe templates**. All references are deterministic, enabling exact
+evaluation with Recipe Success (RS), Order-Consistent Success (OCS), and
+Refinement Gain (RG), without relying on LLM-as-a-judge scoring.
 
 <p align="center">
   <img src="assets/figures/task-demo.png" alt="Example CDR-Bench data refinement recipe" width="92%">
@@ -46,6 +73,9 @@ scoring.
 <p align="center">
   <img src="assets/figures/benchmark-overview.png" alt="CDR-Bench track overview" width="96%">
 </p>
+
+The percentages in the overview figure are computed over unique recipe
+templates rather than task instances.
 
 ## Benchmark Tracks
 
@@ -92,8 +122,18 @@ prompt-seed sweeps.
 The Hugging Face viewer uses `data/main/test.jsonl` and
 `data/semantic_extension/test.jsonl`.
 
-Create the environment for dataset loading, API inference, scoring, and optional
-local vLLM serving:
+### 1. Install
+
+Create the lightweight CDR-Bench client environment for dataset loading,
+OpenAI-compatible API inference, scoring, and result summarization:
+
+```bash
+uv venv .venv --python 3.10
+source .venv/bin/activate
+uv pip install -r requirements.txt
+```
+
+If you prefer Conda:
 
 ```bash
 conda create -n cdrbench python=3.10 -y
@@ -101,6 +141,13 @@ conda activate cdrbench
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
+
+`requirements.txt` intentionally does not install vLLM. For local model
+serving, create a separate CUDA/Linux serving environment and install vLLM
+following the official vLLM documentation for your hardware and PyTorch/CUDA
+stack. CDR-Bench only needs the resulting OpenAI-compatible endpoint.
+
+### 2. Download The Benchmark
 
 Download the public benchmark files from Hugging Face:
 
@@ -114,18 +161,105 @@ Validate the downloaded JSONL files:
 bash ./scripts/validate_benchmark.sh
 ```
 
-This environment covers:
+### 3. Evaluate Your Model
+
+The main command is in `scripts/eval`. Use the `api` wrapper for a hosted
+OpenAI-compatible endpoint, or the `vllm` wrapper for a local vLLM server. Both
+wrappers run the paper-aligned main tracks by default and write predictions and
+scores under `data/evaluation/<track>/<model_slug>/`.
+
+Hosted API or remote OpenAI-compatible endpoint:
+
+```bash
+MODEL=my-model-name \
+MODEL_SLUG=my_model \
+BASE_URL=https://api.example.com/v1 \
+API_KEY=<your_key> \
+bash ./scripts/eval/api/eval_model.sh
+```
+
+Local vLLM OpenAI server:
+
+```bash
+MODEL=my-model-name \
+MODEL_SLUG=my_model \
+BASE_URL=http://127.0.0.1:8000/v1 \
+API_KEY=EMPTY \
+bash ./scripts/eval/vllm/eval_model.sh
+```
+
+To run the semantic-extension suite instead of the main paper tracks:
+
+```bash
+EVAL_SUITE=semantic \
+MODEL=my-model-name \
+MODEL_SLUG=my_model \
+BASE_URL=http://127.0.0.1:8000/v1 \
+API_KEY=EMPTY \
+bash ./scripts/eval/vllm/eval_model.sh
+```
+
+The wrappers accept `infer`, `score`, or `all`:
+
+```bash
+bash ./scripts/eval/vllm/eval_model.sh infer
+bash ./scripts/eval/vllm/eval_model.sh score
+```
+
+### 4. Compare Results
+
+Each evaluation writes per-track files such as:
+
+```text
+data/evaluation/atomic_m/my_model/
+  predictions_direct_k3_seed0.jsonl
+  score_direct_k3_seed0/
+    summary.json
+    paper_metrics.json
+    instance_metrics.csv
+```
+
+Use `paper_metrics.json` for the main-table metrics (`RS@3`, `RG`, `OCS@3`,
+and order-f slot scores). To regenerate scores for an existing prediction
+directory:
+
+```bash
+bash ./scripts/score/score_suite.sh \
+  --track-family main \
+  --predictions-root data/evaluation \
+  --model-dirname my_model \
+  --write-csv
+```
+
+To compare your model against one or more baselines:
+
+```bash
+bash ./scripts/summarize_results.sh \
+  --track-family main \
+  --models BASE_MODEL,my_model \
+  --base-model BASE_MODEL \
+  --output-dir data/evaluation/reports/my_model_comparison
+```
+
+This writes `model_waterline.csv`, `summary.md`, and machine-readable JSON/CSV
+reports that can be compared against the paper table below.
+
+The CDR-Bench client environment covers:
 
 - loading the dataset with `datasets.load_dataset`;
 - downloading and validating benchmark JSONL files;
 - running remote OpenAI-compatible API inference;
 - scoring predictions;
-- serving local models with vLLM through `scripts/start_vllm.sh` and
-  `scripts/model_serve/start_vllm_*.sh`.
+- optionally talking to a local vLLM server through its OpenAI-compatible HTTP
+  endpoint.
 
-For vLLM serving, install on a Linux CUDA machine. If your cluster requires a
-specific PyTorch/CUDA wheel, install that first following your cluster policy,
-then install `requirements.txt`.
+For vLLM serving, install vLLM separately on a Linux CUDA machine. If your
+cluster requires a specific PyTorch/CUDA wheel, install that first following
+your cluster policy, then install vLLM in that serving environment. The release
+keeps helper scripts under `scripts/model_serve/start_vllm_*.sh` and
+`scripts/stop_vllm.sh`; run those scripts after activating your vLLM serving
+environment. You can also start vLLM manually and point CDR-Bench to it with
+`BASE_URL`.
 
 Run a small inference smoke test:
 
@@ -246,17 +380,22 @@ For API models, set `OPENAI_API_KEY`, `DASHSCOPE_API_KEY`, or pass `--api-key`.
 Several common model aliases such as `gpt-5.4`, `glm-5`, `deepseek_v4_flash`,
 and `kimi-k2.6` resolve to the paper-style API names and endpoints.
 
-For local vLLM, start a server separately, for example:
+For local vLLM, start a server separately in your vLLM serving environment.
+Install vLLM from the official documentation for your machine, then expose an
+OpenAI-compatible endpoint, for example:
 
 ```bash
-python -m vllm.entrypoints.openai.api_server \
-  --model /path/to/model \
+vllm serve /path/to/model \
   --served-model-name local-model \
   --port 8000 \
   --trust-remote-code
 ```
 
-The release also keeps the same helper scripts as the experiment workspace:
+If your installed vLLM version uses the older entrypoint, the equivalent command
+is `python -m vllm.entrypoints.openai.api_server ...`. The release also keeps
+the same helper scripts as the experiment workspace; run them in the vLLM
+serving environment, not necessarily in the lightweight CDR-Bench client
+environment:
 
 ```bash
 bash ./scripts/model_serve/start_vllm_gemma4.sh
@@ -560,13 +699,9 @@ Representative main-track results from the paper are shown below. All numbers
 are percentages; `RS@3` is recipe success over three sampled prompt variants,
 `RG` is refinement gain, and `OCS@3` is group-level order-consistent success.
 
-| Model | Atomic-M RS@3 | Agnostic-M RS@3 | Agnostic-M RG | Order-M RS@3 | Order-M RG | Order-M OCS@3 | Order-F pre RS@3 | Order-F mid RS@3 | Order-F post RS@3 | Order-F OCS@3 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| GPT-5.4 | 30.30 | 22.74 | 53.77 | 13.99 | 52.58 | 4.90 | 62.04 | 25.03 | 14.97 | 9.46 |
-| Claude Opus 4.6 | 29.55 | 22.33 | 48.06 | 12.24 | 50.42 | 2.80 | 57.96 | 33.17 | 23.95 | 18.68 |
-| Qwen3.6-max | 26.15 | 23.94 | 50.81 | 7.34 | 48.90 | 0.70 | 46.88 | 21.82 | 17.03 | 8.27 |
-| Gemma-4-31B-IT | 29.55 | 25.55 | 56.54 | 8.04 | 59.32 | 0.70 | 32.81 | 19.16 | 14.01 | 6.11 |
-| Qwen3.6-35B-A3B | 18.18 | 20.40 | 42.03 | 7.02 | 41.31 | 0.00 | 50.98 | 12.17 | 12.89 | 3.70 |
+<p align="center">
+  <img src="assets/figures/main-results-table.png" alt="Main CDR-Bench results table" width="100%">
+</p>
 
 <p align="center">
   <img src="assets/figures/recipe-length-performance.png" alt="Recipe length performance" width="88%">
@@ -600,9 +735,12 @@ The release includes appendix-compatible real-scenario extensions:
   rows return all three fields in one JSON object.
 
 <p align="center">
-  <img src="assets/figures/semantic-pii.png" alt="Semantic PII redaction results" width="48%">
-  <img src="assets/figures/semantic-hallucination.png" alt="Semantic hallucination results" width="48%">
+  <img src="assets/figures/semantic-domain-drop.png" alt="Atomic-to-compositional drop across semantic domains" width="82%">
 </p>
+
+The semantic-extension figure summarizes the average atomic RS@3,
+compositional RS@3, and the resulting composition gap for PII redaction,
+hallucination processing, safety tagging, and rubric scoring.
 
 ## Scripts
 
@@ -636,9 +774,6 @@ scripts/stop_vllm.sh
 If you use CDR-Bench, please cite the paper:
 
 ```bibtex
-@misc{cdrbench2026,
-  title = {CDR-Bench: Can LLMs Execute Compositional, Order-Sensitive Data Refinement Recipes?},
-  year = {2026},
-  note = {Citation metadata will be updated after publication.}
-}
+
+
 ```
